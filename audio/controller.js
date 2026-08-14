@@ -1,4 +1,4 @@
-// PNDS Template work layer: per-client sine voice control.
+// Local Network Diagnostics work layer: per-client sine voice control.
 //
 // This is the file creators edit to change the *semantics* of the work
 // (what the faders do, how voices are routed). The transport and engine

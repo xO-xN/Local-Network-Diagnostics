@@ -1,9 +1,9 @@
 {
   "schemaVersion": 1,
-  "id": "pnds-template",
-  "name": "Template",
+  "id": "local-network-diagnostics",
+  "name": "Local Network Diagnostics",
   "version": "0.1.0",
-  "description": "PNDS score project template: two-fader touch performer (amp / freq) driving one sine voice per client with 16-channel output.",
+  "description": "PNDS score project for local network diagnostics: measures Wi-Fi round-trip time, jitter and loss between the server and its clients in real time.",
   "scoreServer": {
     "entry": "server.js",
     "workingDirectory": ".",

@@ -33,9 +33,8 @@
     freqRange: { min: 1000, max: 3000 },
 
     // Claim token persisted by the performer page so a reconnect recovers
-    // the same client id (localStorage key). Rename this when you base a
-    // new work on the template — see docs/creator-guide.md.
-    tokenKey: "pnds-template-token",
+    // the same client id (localStorage key).
+    tokenKey: "local-network-diagnostics-token",
 
     events: {
       join: "join",

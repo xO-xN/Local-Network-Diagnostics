@@ -1,4 +1,4 @@
-// PNDS Template — External debug bridge (创作期调试工具).
+// Local Network Diagnostics — External debug bridge (创作期调试工具).
 //
 // Run this file in the SuperCollider IDE (boot the local server first), then
 // start the score server from a terminal:
@@ -50,6 +50,6 @@ s.waitForBoot {
         "/c%/out -> %".format(id, msg[1]).postln;
     }, "/c*/out");
 
-    "PNDS Template debug bridge listening on 57120 (external mode).".postln;
+    "Local Network Diagnostics debug bridge listening on 57120 (external mode).".postln;
 };
 )

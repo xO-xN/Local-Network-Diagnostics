@@ -1,4 +1,4 @@
-// PNDS Template — performer page (p5).
+// Local Network Diagnostics — performer page (p5).
 //
 // Landscape touch UI: two curved faders that follow the natural arc of the
 // thumbs (the pivot is the wrist, outside the lower corners of the phone).

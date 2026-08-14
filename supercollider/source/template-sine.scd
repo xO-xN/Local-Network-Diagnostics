@@ -1,4 +1,4 @@
-// PNDS Template — sine voice SynthDef source (创作期源码).
+// Local Network Diagnostics — sine voice SynthDef source (创作期源码).
 //
 // Run this file in the SuperCollider IDE to register the SynthDef locally
 // (needed when debugging the external bridge with sclang). To compile the

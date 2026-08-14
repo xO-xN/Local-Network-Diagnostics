@@ -1,4 +1,4 @@
-// PNDS Template — score server entry point.
+// Local Network Diagnostics — score server entry point.
 //
 // Orchestrates the reusable core (lib/) and the work layer (audio/controller.js):
 // - serves performer + monitor pages from public/ on both ports

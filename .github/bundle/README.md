@@ -1,6 +1,6 @@
-# PNDS Template
+# Local Network Diagnostics
 
-A runnable PNDS score project skeleton with minimal working features.
+A runnable PNDS score project for local network diagnostics.
 
 This folder is a **PNDS score project**, packaged and ready to run offline.
 

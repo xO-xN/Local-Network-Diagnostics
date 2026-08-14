@@ -1,4 +1,4 @@
-// PNDS Template — monitor page (p5).
+// Local Network Diagnostics — monitor page (p5).
 //
 // Listens to the score server and draws every joined performer (id, amp,
 // freq, output channel), centered on screen. The operator can reassign each

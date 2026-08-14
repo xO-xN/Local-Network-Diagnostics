@@ -1,6 +1,6 @@
-# PNDS Template — Creator Guide（创作者开始指南）
+# Local Network Diagnostics — Creator Guide（创作者开始指南）
 
-这是一个可直接运行的 PNDS 数字乐谱工程骨架，带最小功能实现，适合作为新作品的起点。
+这是一个基于 PNDS 模板的可运行 PNDS 数字乐谱工程。当前代码仍是模板基准实现（双推子 sine voice），正在开发为**本地网络诊断工具**——功能按 GitHub issues（自 #2 起）逐步落地，本指南随之更新。
 
 ## 快速开始
 
@@ -34,7 +34,7 @@ npm run dev         # Internal 模式（需本机 scsynth 在 57110 端口）
 
 默认端口来自 `manifest.json` 的 `scoreServer.performerPort` / `monitorPort`——这是**唯一来源**。`public/shared.js` 和浏览器都会自动读取，不需要手动同步。
 
-## 作品规格（本模板实现的功能）
+## 当前实现（继承自模板）
 
 - 演奏者界面：**手机横屏**触摸；竖屏时提示旋转。左半屏是 **AMP 推子**，右半屏是 **FREQ 推子**。
 - 推子值经 Socket.IO 发到 score server，由 server 转为 OSC 控制 SuperCollider。
@@ -102,7 +102,7 @@ docs/                     本指南与交接文档
 - **Socket.IO 事件名**（`events`）、**频率范围**（`freqRange`）、**客户端上限**（`maxClients`）、**localStorage token 键名**（`tokenKey`）都在这里定义。
 - **端口**的单一来源是 `manifest.json`（App 工程契约）。`shared.js` 在 Node 端自动从 manifest 读取，浏览器端由 server 动态注入——创作者只需改 manifest.json。
 - 修改频率范围只需改 `freqRange.min / max` 一处：performer 页面的 Hz 显示与 server 端 `audio/controller.js` 的 `mapFreq()`（`FREQ_MIN/FREQ_MAX` 从 shared 读取）自动同步。
-- 基于模板创建新作品时，建议修改 `tokenKey` 为与作品 id 一致的名称（如 `”my-work-token”`），避免不同工程共用同一个 localStorage 键。
+- 本工程的 `tokenKey` 已随改名与工程 id 一致（`local-network-diagnostics-token`）。若由此 fork 出新的工程，记得同步修改这个键，避免不同工程共用同一个 localStorage 键。
 
 ## 声音：编辑与编译 SynthDef
 

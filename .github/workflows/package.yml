@@ -25,7 +25,7 @@ jobs:
       contents: write
     env:
       VERSION: ${{ github.ref_type == 'tag' && github.ref_name || inputs.version }}
-      BUNDLE: dist/PNDS Template
+      BUNDLE: dist/Local Network Diagnostics
     steps:
       - uses: actions/checkout@v4
 
@@ -87,25 +87,25 @@ jobs:
 
       - name: Create archive
         run: |
-          cd dist && zip -q -r -X "../PNDS-Template-${VERSION}.zip" "PNDS Template"
-          cd .. && ls -lh "PNDS-Template-${VERSION}.zip"
+          cd dist && zip -q -r -X "../local-network-diagnostics-${VERSION}.zip" "Local Network Diagnostics"
+          cd .. && ls -lh "local-network-diagnostics-${VERSION}.zip"
 
       - name: Create draft release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ env.VERSION }}
-          name: PNDS Template ${{ env.VERSION }}
+          name: Local Network Diagnostics ${{ env.VERSION }}
           draft: true
-          files: PNDS-Template-*.zip
+          files: local-network-diagnostics-*.zip
           body: |
-            A PNDS score project skeleton with minimal working features.
+            A PNDS score project for local network diagnostics.
 
             > [!IMPORTANT]
-            > Download **`PNDS-Template-${{ env.VERSION }}.zip`** from the Assets below.
+            > Download **`local-network-diagnostics-${{ env.VERSION }}.zip`** from the Assets below.
             >
             > Do **not** download "Source code (zip)" or "Source code (tar.gz)",
             > and do not use the green "Code → Download ZIP" button. Those contain
             > the source only, without the installed Node.js dependencies.
             >
-            > The correct archive unzips into a folder named `PNDS Template`
+            > The correct archive unzips into a folder named `Local Network Diagnostics`
             > that contains a `node_modules` directory.

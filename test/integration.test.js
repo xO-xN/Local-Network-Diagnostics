@@ -99,7 +99,7 @@ test("score server: health, join, control, set-out, reconnect, pages", async (t)
 
   const health = await waitForHealthReady();
 
-  assert.equal(health.projectId, "pnds-template");
+  assert.equal(health.projectId, "local-network-diagnostics");
   assert.equal(health.audioMode, "none");
   assert.equal(health.scoreServer.performerPort, 6868);
   assert.equal(health.scoreServer.monitorPort, 6869);
