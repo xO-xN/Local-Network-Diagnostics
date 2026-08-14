@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="user-scalable=no, initial-scale=1, maximum-scale=1, viewport-fit=cover"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+
+    <title>PNDS Template</title>
+
+    <link rel="stylesheet" type="text/css" href="style.css" />
+
+    <script src="__config.js"></script>
+    <script src="shared.js"></script>
+    <script>
+      // Single page, two roles: the performer port serves the touch UI,
+      // the monitor port serves the operator view.
+      window.PNDS_IS_MONITOR =
+        window.location.port === String(window.PNDS.monitorPort);
+
+      // Socket.IO is served by the performer server; the monitor page loads
+      // it cross-port. No CDN: performances run offline.
+      document.write(
+        '\x3Cscript src="http://' +
+          location.hostname +
+          ':' +
+          window.PNDS.performerPort +
+          '/socket.io/socket.io.js"\x3E\x3C/script\x3E',
+      );
+
+      // Both roles (performer touch UI and monitor) draw with p5.
+      document.write(
+        '\x3Cscript src="libraries/p5.min.js"\x3E\x3C/script\x3E',
+      );
+    </script>
+  </head>
+
+  <body>
+    <div id="rotate-overlay" class="hidden">
+      <p>请旋转设备至横屏</p>
+      <p>Rotate your device to landscape</p>
+    </div>
+
+    <main id="stage"></main>
+
+    <script>
+      if (window.PNDS_IS_MONITOR) {
+        document.write('\x3Cscript src="monitor.js"\x3E\x3C/script\x3E');
+      } else {
+        document.write('\x3Cscript src="performer.js"\x3E\x3C/script\x3E');
+      }
+    </script>
+  </body>
+</html>
