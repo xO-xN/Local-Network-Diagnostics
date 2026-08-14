@@ -144,56 +144,6 @@ header .sub {
   color: var(--st);
 }
 
-.phase {
-  font-size: 11px;
-  font-weight: 600;
-  color: var(--accent);
-  background: var(--accent-soft);
-  border-radius: 999px;
-  padding: 3px 10px;
-  display: none;
-}
-
-.phase.on {
-  display: inline-block;
-}
-
-/* ------------------------------------------------------------
- * Controls (monitor)
- * ------------------------------------------------------------ */
-
-.controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.btn {
-  font: inherit;
-  font-size: 14px;
-  font-weight: 600;
-  color: #fff;
-  background: var(--accent);
-  border: none;
-  border-radius: 10px;
-  padding: 10px 28px;
-  cursor: pointer;
-  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.15);
-  transition: background 0.12s;
-}
-
-.btn:hover {
-  background: #4538e0;
-}
-
-.btn.running {
-  background: var(--danger);
-}
-
-.btn.running:hover {
-  background: #b9163a;
-}
-
 /* ------------------------------------------------------------
  * Client cards (monitor)
  * ------------------------------------------------------------ */

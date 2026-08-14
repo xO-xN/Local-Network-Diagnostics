@@ -10,14 +10,14 @@ A PNDS score project that continuously diagnoses the local Wi-Fi network between
 
 ### Features
 
-- **One-click test**: Start Test / Stop Test on the monitor page
+- **Automatic test**: opening the monitor page starts the test immediately — no button to press
 - **Baseline probing**: 1 Hz probes to every connected client measure typical responsiveness
 - **Burst probing**: 2-second bursts at 30 msg/s alternating with calm periods simulate high-density works
 - **Status system**: per-client Green/Yellow/Red status (Gray while warming up) with descriptive copy — no number-crunching required
 - **Overall banner**: the worst status among online clients, shown prominently at the top of the monitor
 - **Disconnect handling**: instant Red on disconnect, with an event log and reconnect recovery
 - **Details panel**: worst-case response (RTT p95), loss rate and client processing time
-- **Minimal performer page**: mobile clients just show "已连接，正在测速" while answering probes automatically
+- **Minimal performer page**: mobile clients just show "Connected, testing…" while answering probes automatically
 
 ### Getting Started
 
@@ -50,14 +50,14 @@ MIT — see [LICENSE](LICENSE).
 
 ### 功能
 
-- **一键测试**：monitor 页提供 Start Test / Stop Test
+- **自动测试**：打开 monitor 页即自动开始测试，无需按钮
 - **基线探测**：以 1 Hz 向每个已连接客户端发送 probe，测量常态响应
 - **突发探测**：2 秒 30 msg/s 突发与平静期交替，模拟高密度作品
 - **状态系统**：每客户端绿/黄/红状态（加入初期为 Gray warming-up），配文字说明，无需解读数字
 - **Overall 横幅**：页面顶部显著显示所有在线客户端中最差的状态
 - **断线处理**：断开立即 Red，事件日志记录，重连后恢复
 - **详情面板**：最差响应（RTT p95）、丢包率、客户端处理耗时
-- **极简 performer 页**：手机客户端只显示"已连接，正在测速"，自动应答探针
+- **极简 performer 页**：手机客户端只显示 "Connected, testing…"，自动应答探针
 
 ### 开始
 

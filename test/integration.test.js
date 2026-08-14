@@ -189,13 +189,16 @@ test("score server: health, join, reconnect, pages", async (t) => {
 
   // The performer page is the minimal "connected, testing" client…
   const performerJs = await (await fetch(`${PERFORMER_URL}/performer.js`)).text();
-  assert.match(performerJs, /已连接，正在测速/);
+  assert.match(performerJs, /Connected, testing/);
   assert.doesNotMatch(performerJs, /p5/);
 
-  // …and the monitor page is the operator console.
+  // …and the monitor page is the operator console: it auto-starts the test
+  // on open (no Start button) and shows the centered Overall banner.
   const monitorJs = await (await fetch(`${MONITOR_URL}/monitor.js`)).text();
-  assert.match(monitorJs, /Start Test/);
+  assert.match(monitorJs, /diagStart/);
+  assert.match(monitorJs, /Overall/);
   assert.doesNotMatch(monitorJs, /p5/);
+  assert.doesNotMatch(monitorJs, /Start Test/);
 });
 
 // ------------------------------------------------------------

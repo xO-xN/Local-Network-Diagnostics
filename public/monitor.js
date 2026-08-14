@@ -1,11 +1,11 @@
 // Local Network Diagnostics — monitor page.
 //
 // Operator console in the "Multichannel Signal Generator" visual language:
-// light theme, centered column — an Overall banner on top, a Start/Stop
-// button, one card per joined performer, and a per-client details modal
-// (p95, loss rate, processing time, event log). Diagnostics data arrives
-// inside the regular "state" broadcast as `diag` — see lib/diagnostics.js
-// on the server.
+// light theme, centered column — an Overall banner on top and one card per
+// joined performer, with a per-client details modal (p95, loss rate,
+// processing time, event log). Opening the page starts the test
+// automatically. Diagnostics data arrives inside the regular "state"
+// broadcast as `diag` — see lib/diagnostics.js on the server.
 
 const P = window.PNDS;
 
@@ -20,10 +20,6 @@ app.innerHTML =
   '<span class="dot"></span>' +
   '<span class="overall-label">Overall</span>' +
   '<span class="overall-copy" id="overall-copy">Test not running</span>' +
-  '<span class="phase" id="phase">Burst</span>' +
-  "</div>" +
-  '<div class="controls">' +
-  '<button class="btn" id="start">Start Test</button>' +
   "</div>" +
   '<div id="cards"></div>' +
   '<div class="hint" id="empty"></div>' +
@@ -38,8 +34,6 @@ app.innerHTML =
 
 const overallEl = document.getElementById("overall");
 const overallCopyEl = document.getElementById("overall-copy");
-const phaseEl = document.getElementById("phase");
-const startButton = document.getElementById("start");
 const cardsEl = document.getElementById("cards");
 const emptyEl = document.getElementById("empty");
 const hintEl = document.getElementById("hint");
@@ -54,14 +48,15 @@ const socket = io(
   { reconnection: true },
 );
 
+// The test starts automatically with the page (and after any reconnect —
+// the server ignores a start while the test is already running).
+socket.on("connect", () => {
+  socket.emit(P.events.diagStart);
+});
+
 socket.on(P.events.state, (data) => {
   diag = data.diag || null;
   render();
-});
-
-startButton.addEventListener("click", () => {
-  const running = Boolean(diag && diag.running);
-  socket.emit(running ? P.events.diagStop : P.events.diagStart);
 });
 
 modalEl.addEventListener("click", (event) => {
@@ -106,7 +101,7 @@ function renderOverall() {
   let copy;
 
   if (!running) {
-    copy = "Test not running — press Start Test";
+    copy = "Test not running";
   } else if (clientIds().length === 0) {
     copy = "No performers connected";
   } else {
@@ -114,10 +109,6 @@ function renderOverall() {
   }
 
   overallCopyEl.textContent = copy;
-  phaseEl.classList.toggle("on", Boolean(diag && diag.phase === P.diagPhases.burst));
-
-  startButton.textContent = running ? "Stop Test" : "Start Test";
-  startButton.classList.toggle("running", running);
 }
 
 // The card grid is driven by the diagnostics roster (diag.clients), which

@@ -24,8 +24,8 @@
 ## 决策记录
 
 - **本工程是纯网络测试工具（无音频）**：删除模板的音频链路（audio/、supercollider/、audio-engine/osc-transport、control/set-out 事件、lastControls、freqRange）。`PlayerRegistry` 上限改为 `shared.maxClients`（16）。health 恒报告 `audioMode: "none"` + `audio.status: "disabled"`（运行契约对 none 模式的要求；模板原来在 none 模式误报 "ready"，本工程修正）。
-- **performer 端极简**：只显示"已连接，正在测速"（自动 join + 应答探针 + claim token 恢复身份），无任何演奏 UI。
-- **monitor 端居中设计**：参照 "Multichannel Signal Generator" 示例的前端（浅色主题、居中 flex 列、圆角白卡片、accent `#5a4ff3`）；纯 DOM，**不再使用 p5**。卡片网格由诊断名册（`diag.clients`）驱动（断开客户端保留为红卡）；详情为居中模态弹窗。
+- **performer 端极简**：只显示 "Connected, testing…"（英文，与全站一致；自动 join + 应答探针 + claim token 恢复身份），无任何演奏 UI。
+- **monitor 端居中设计**：参照 "Multichannel Signal Generator" 示例的前端（浅色主题、居中 flex 列、圆角白卡片、accent `#5a4ff3`）；纯 DOM，**不再使用 p5**。卡片网格由诊断名册（`diag.clients`）驱动（断开客户端保留为红卡）；详情为居中模态弹窗。**无 Start/Stop 按钮——打开页面即自动开始测试**（`diagStart` 事件保留，server 对重复 start 幂等）；**不显示 Burst/Calm 阶段徽章**（`diagPhases` 仍由 server 使用，仅 UI 不展示）。
 - **`lib/diagnostics.js` 是"lib/ 不含作品逻辑"的例外**：本工程的作品即网络诊断，指标与状态机是作品核心；保留在 lib/ 是因为它是纯函数模块（无 IO），与 `health.js` / `players.js` 一样可独立单测。阈值（100/50/25/10 ms、5%、3 次、200/500 ms、2 s 阶段）与规则优先级都在此文件，改作品行为改这里。
 - **探针只发给已 join 的 performer**；monitor 页面（不 join）不参与探测——spec 的测试范围是"Server ↔ Wi-Fi 连接的移动客户端"，monitor 运行在操作主机上。
 - **1–2 次连续 timeout 判 Yellow**：spec 只规定"连续 3 次 → Red"，未规定 1–2 次；为避免"正在超时的客户端显示 Green 并累计 hysteresis 恢复计数"，补为 Yellow（"Recent probe timeouts"）。

@@ -3,7 +3,7 @@
 // Minimal mobile client: joins the score server automatically (recovering
 // the client id via the persisted claim token) and answers every
 // diagnostics probe immediately so the server can measure the real round
-// trip. The page shows exactly one thing: "已连接，正在测速".
+// trip. The page shows exactly one thing: "Connected, testing…".
 
 const P = window.PNDS;
 
@@ -16,7 +16,7 @@ app.innerHTML =
   "</header>" +
   '<div class="perf">' +
   '<span class="dot" id="perf-dot"></span>' +
-  '<p class="status" id="perf-status">连接中…</p>' +
+  '<p class="status" id="perf-status">Connecting…</p>' +
   '<p class="meta" id="perf-meta"></p>' +
   "</div>";
 
@@ -36,7 +36,7 @@ socket.on(P.events.joined, (data) => {
 
 socket.on(P.events.rejected, (data) => {
   setJoined(false);
-  statusEl.textContent = "已拒绝：" + (data && data.reason ? data.reason : "");
+  statusEl.textContent = "Rejected: " + (data && data.reason ? data.reason : "");
 });
 
 socket.on("connect", () => {
@@ -68,11 +68,11 @@ socket.on(P.events.diagProbe, (payload) => {
 function setJoined(joined, id) {
   if (joined) {
     dot.classList.add("ok");
-    statusEl.textContent = "已连接，正在测速";
+    statusEl.textContent = "Connected, testing…";
     metaEl.textContent = "Client " + id;
   } else {
     dot.classList.remove("ok");
-    statusEl.textContent = "连接中…";
+    statusEl.textContent = "Connecting…";
     metaEl.textContent = "";
   }
 }

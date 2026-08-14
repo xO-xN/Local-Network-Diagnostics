@@ -28,8 +28,8 @@ npm start    # 不需要任何音频参数；恒为无音频模式
 
 | 页面 | 地址 | 用途 |
 |---|---|---|
-| Performer | `http://<Host-LAN-IP>:6868/` | 手机客户端：自动加入并应答探针，只显示"已连接，正在测速" |
-| Monitor | `http://<Host-LAN-IP>:6869/` | 监视端：居中显示的网络诊断控制台（Overall、Start/Stop、卡片网格、详情弹窗） |
+| Performer | `http://<Host-LAN-IP>:6868/` | 手机客户端：自动加入并应答探针，只显示 "Connected, testing…" |
+| Monitor | `http://<Host-LAN-IP>:6869/` | 监视端：居中显示的网络诊断控制台（打开即自动开始测试；Overall、卡片网格、详情弹窗） |
 
 默认端口来自 `manifest.json` 的 `scoreServer.performerPort` / `monitorPort`——这是**唯一来源**。`public/shared.js` 和浏览器都会自动读取，不需要手动同步。
 
@@ -37,7 +37,7 @@ npm start    # 不需要任何音频参数；恒为无音频模式
 
 本工程的作品语义是**网络诊断**，Monitor 页面即为诊断控制台：
 
-- **Start Test / Stop Test**：Monitor 页面按钮。只有未 join 的 socket（即 monitor 页面本身）能启停测试，joined performer 不能。
+- **自动开始**：打开 Monitor 页面即自动开始测试（页面连接后发送 `diagStart`；server 对重复 start 幂等）。只有未 join 的 socket（即 monitor 页面本身）能启停测试，joined performer 不能；`diagStart`/`diagStop` 事件保留，供调试与测试使用。
 - **探针回路**：测试运行期间，server 向每个已 join 的 performer 发送 `pnds:diag:probe`；performer 页面收到后立即回 `pnds:diag:ack`（附带 `performance.now()` 收发时间戳）。RTT 由 server 端计算；monitor 页面不参与探测。**双阶段循环**：`[2 s burst @ 30 msg/s，超时 200 ms] → [2 s calm @ 1 Hz，超时 500 ms]` 持续交替，模拟高密度作品负载；同一客户端可同时有多个 in-flight 探针（per-seq 追踪）。
 - **指标**（server 端，`lib/diagnostics.js` 纯逻辑）：RTT p50/p95（滑动窗口 10 个样本）、jitter = 窗口内相邻 RTT 差的 p95、timeout 总数与连续 timeout 数、**丢包率**（timeouts / (acks + timeouts)，仅详情面板）、**burst 窗口超时率**（每个 burst 窗口结束时冻结，喂给状态机）、客户端处理时间（t1−t0，仅详情面板）。
 - **状态机**（优先级从高到低）：Disconnected → Red（立即，跳过 warming up）；连续 3 次 timeout → Red；burst 超时率 > 5% → Red；jitter p95 > 25 ms → Yellow；RTT p95 > 100 ms → Yellow；**1–2 次连续 timeout → Yellow**（spec 缺口补齐：正在超时的客户端不得显示 Green，也不能累计恢复计数）；其余满足 Green 条件（jitter < 10 ms 且 RTT p95 < 50 ms）→ Green；介于两者之间 → Yellow。
@@ -45,8 +45,8 @@ npm start    # 不需要任何音频参数；恒为无音频模式
 - **Hysteresis**：从 Red/Yellow 恢复到 Green 需要连续 10 个良好周期；任一坏周期重置计数；恶化立即生效。
 - **Overall**：所有**在线**且非 Gray 客户端中最差状态（Red > Yellow > Green）。断开（离线）客户端不参与 Overall，但其红色卡片保留可见。
 - **断开与事件日志**：客户端断开时卡片**保留并立即转 Red**；每个客户端记录事件（Connected / Disconnected / Reconnected，带时间戳，最多 20 条）；重连凭 claim token 恢复原 id，重新经过 Gray warming up 回到 Green。卡片与详情弹窗展示最近事件（如 "Disconnected 5s ago"）。
-- **Monitor 展示**（参照 Multichannel Signal Generator 的居中浅色卡片设计，纯 DOM，无 p5）：居中 Overall 横幅（运行中显示当前 Burst/Calm 阶段）+ Start/Stop 按钮 + 每客户端一张卡片（状态色、状态文案、原因、Typical Response = RTT p50、Worst-case Response = RTT p95、Stability (Timing Variation) = jitter、最近事件）。**点击卡片打开详情弹窗**：p95、丢包率、处理耗时、完整事件日志（这些指标不参与状态判定）。Red 卡片文案固定为 **"Not suitable for performance"**。页面底部有 performer 页面 QR 码。
-- **Performer 页面**：手机端极简视图——自动加入（凭 localStorage 中的 claim token 恢复身份）、自动应答探针，只显示**"已连接，正在测速"**。
+- **Monitor 展示**（参照 Multichannel Signal Generator 的居中浅色卡片设计，纯 DOM，无 p5）：居中 Overall 横幅 + 每客户端一张卡片（状态色、状态文案、原因、Typical Response = RTT p50、Worst-case Response = RTT p95、Stability (Timing Variation) = jitter、最近事件）。**点击卡片打开详情弹窗**：p95、丢包率、处理耗时、完整事件日志（这些指标不参与状态判定）。Red 卡片文案固定为 **"Not suitable for performance"**。页面底部有 performer 页面 QR 码。无 Start/Stop 按钮（打开即自动测试），不显示 Burst/Calm 阶段。
+- **Performer 页面**：手机端极简视图——自动加入（凭 localStorage 中的 claim token 恢复身份）、自动应答探针，只显示 **"Connected, testing…"**。
 - **状态文案单一来源**：`public/shared.js` 的 `statusCopy`（Gray/Green/Yellow/Red 四档），server 的 reason 与 monitor 的卡片/横幅都从它读取。
 
 ## 目录结构
