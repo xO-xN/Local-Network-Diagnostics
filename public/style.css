@@ -56,9 +56,33 @@ body {
 /* ---- monitor QR code ---- */
 
 .qr-image {
-  width: 180px;
-  height: 180px;
+  width: 150px;
+  height: 150px;
   padding: 8px;
   background: #ffffff;
   border-radius: 8px;
+}
+
+/* ---- monitor diagnostics controls ---- */
+
+.diag-button {
+  min-width: 150px;
+  height: 42px;
+  border: 1px solid #3a4050;
+  border-radius: 8px;
+  background: #22262f;
+  color: #e8ecf4;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.diag-button:hover {
+  border-color: #94a3b8;
+}
+
+.diag-button.running {
+  background: #7c2d12;
+  border-color: #f87171;
+  color: #fecaca;
 }

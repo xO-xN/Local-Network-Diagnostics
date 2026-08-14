@@ -5,9 +5,10 @@
 ## 分层约定
 
 - `lib/` 是可复用核心，**不得包含作品特定逻辑**。改动它意味着所有继承该模板的工程都受影响。
+- **例外（本工程）**：`lib/diagnostics.js` 承载本工程的作品语义（诊断指标 + 状态机）——本工程的作品本身就是网络诊断，且该模块是纯逻辑（无 timer / socket，可单测），见决策记录。
 - `audio/controller.js` 是作品语义层：id → voice、声道分配、external OSC 协议。
 - `server.js` 只做编排（协议挂载、广播、生命周期），不含业务算法。
-- `public/shared.js` 是浏览器与 server 的**单一事实来源**（事件名、频率范围、常量），必须保持 UMD 形态（浏览器全局 `window.PNDS` + Node `module.exports`）。
+- `public/shared.js` 是浏览器与 server 的**单一事实来源**（事件名、频率范围、诊断状态文案 `statusCopy`），必须保持 UMD 形态（浏览器全局 `window.PNDS` + Node `module.exports`）。
 
 ## 端口约定
 
@@ -45,11 +46,17 @@
 - QR 码由 `lib/qr.js` 生成（`qrcode` npm 包，`GET /qr` 挂在 monitor server），monitor 页面 `<img src="/qr">` 显示。
 - 本工程**不预装 node_modules**（`.gitignore` 排除）；首次使用按 creator-guide 执行 `npm install`。发布包必须预装。
 - p5 是本工程沿用的默认视觉方案（继承自模板），不是平台组件。
+- **`lib/diagnostics.js` 是"lib/ 不含作品逻辑"的例外**：本工程的作品即网络诊断，指标与状态机是作品核心；保留在 lib/ 是因为它是纯函数模块（无 IO），与 `health.js` / `players.js` 一样可独立单测。阈值（100/50/25/10 ms、5%、3 次）与规则优先级都在此文件，改作品行为改这里。
+- **Monitor 端移除了模板遗留的"声道分配"下拉 UI**（#3 起）：监视端只做诊断（Overall + 卡片 + Start/Stop）。`set-out` 事件与 server 端处理保留（模板核心，performer 推子控制仍走 `control`）。
+- **探针只发给已 join 的 performer**；monitor 页面（不 join）不参与探测——spec 的测试范围是"Server ↔ Wi-Fi 连接的移动客户端"，monitor 运行在操作主机上。
+- **1–2 次连续 timeout 判 Yellow**：spec 只规定"连续 3 次 → Red"，未规定 1–2 次；为避免"正在超时的客户端显示 Green 并累计 hysteresis 恢复计数"，补为 Yellow（"Recent probe timeouts"）。
+- **Disconnected → Red 规则已实现于纯函数并单测**（`decideStatus` 最高优先级）；生产接线（断开后保留红色卡片、事件日志）随断开/事件日志 issue（#6）落地，当前断开即移除卡片。
+- **卡片展示 p50/p95/jitter**；spec 中"最近一次事件"、丢包率等详细数据随详情面板 issue（#8）与事件日志 issue（#6）补充。
 
 ## 验证命令
 
 ```sh
 npm run check   # 全部 JS 语法检查
-npm test        # node --test（config / audio 契约 / players）
+npm test        # node --test（config / audio 契约 / players / diagnostics / E2E）
 npm run build:synthdef   # 重新编译 SynthDef
 ```

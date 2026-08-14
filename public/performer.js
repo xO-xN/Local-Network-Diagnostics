@@ -87,6 +87,20 @@ function connectSocket() {
     rejectedReason = data.reason || "Rejected";
   });
 
+  // Diagnostics: answer every probe immediately so the server can measure
+  // the real round trip. t0/t1 are performance.now() timestamps around the
+  // reply — the server uses them only for the client processing time (the
+  // RTT itself is measured server-side).
+  socket.on(P.events.diagProbe, (payload) => {
+    const t0 = performance.now();
+
+    socket.emit(P.events.diagAck, {
+      seq: payload && payload.seq,
+      t0,
+      t1: performance.now(),
+    });
+  });
+
   socket.on("connect", () => {
     // Fires on first connect and after every reconnect: (re)join with the
     // persisted token so the server hands back the same client id.

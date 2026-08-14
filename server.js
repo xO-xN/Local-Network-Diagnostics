@@ -6,6 +6,7 @@
 // - assigns client ids, restores them on reconnect (claim token)
 // - forwards fader controls to the audio layer
 // - broadcasts client state to the monitor page
+// - runs the network diagnostics probe loop (start/stop from the monitor)
 // - shuts down cleanly on SIGINT / SIGTERM
 
 const path = require("node:path");
@@ -24,6 +25,11 @@ const { resolveHostLanIp } = require("./lib/network");
 const { HealthTracker } = require("./lib/health");
 const { AudioEngine } = require("./lib/audio-engine");
 const { PlayerRegistry } = require("./lib/players");
+const {
+  DiagnosticsSession,
+  PROBE_INTERVAL_MS,
+  BASELINE_TIMEOUT_MS,
+} = require("./lib/diagnostics");
 const { qrHandler } = require("./lib/qr");
 const { ProjectAudio } = require("./audio/controller");
 const {
@@ -111,6 +117,15 @@ const registry = new PlayerRegistry({
   maxClients: audioEngine.outputChannels,
 });
 
+// Network diagnostics session (lib/diagnostics.js): per-client metrics and
+// status. The probe loop below owns all timers.
+const diag = new DiagnosticsSession();
+
+// In-flight probes per client id: { seq, sentAt, timer }. A probe is
+// pending from the moment it is sent until its ack or its timeout.
+const pendings = new Map();
+const probeSeqs = new Map(); // per-client probe sequence counters
+
 // Last known controls per claim token, restored when a client reconnects.
 // (Ids are reused after a disconnect; the token is the persistent identity.)
 const lastControls = new Map();
@@ -190,6 +205,8 @@ io.on("connection", (socket) => {
       return;
     }
 
+    diag.addClient(result.id);
+
     try {
       if (!projectAudio.voices.has(result.id)) {
         await projectAudio.addVoice(result.id);
@@ -214,6 +231,7 @@ io.on("connection", (socket) => {
     } catch (error) {
       console.error(`[server] failed to create voice for client ${result.id}:`, error);
       registry.release(result.id);
+      diag.removeClient(result.id);
       socket.emit(EVENTS.rejected, {
         reason: "Audio voice could not be created.",
       });
@@ -278,12 +296,63 @@ io.on("connection", (socket) => {
     }
   });
 
+  // Diagnostics: the monitor page starts and stops the test; probes go to
+  // joined performers only (the monitor socket never joins, so it is never
+  // probed itself). Joined performers cannot control the test.
+  socket.on(EVENTS.diagStart, () => {
+    if (registry.findIdBySocket(socket.id) !== null) {
+      return;
+    }
+
+    diag.start();
+    broadcastState();
+  });
+
+  socket.on(EVENTS.diagStop, () => {
+    if (registry.findIdBySocket(socket.id) !== null) {
+      return;
+    }
+
+    clearAllPending();
+    diag.stop();
+    broadcastState();
+  });
+
+  socket.on(EVENTS.diagAck, (payload) => {
+    const id = registry.findIdBySocket(socket.id);
+
+    if (id === null || !payload || typeof payload.seq !== "number") {
+      return;
+    }
+
+    const pending = pendings.get(id);
+
+    // A late ack for an already-timed-out probe carries a stale seq and is
+    // ignored; the timeout already counted.
+    if (!pending || pending.seq !== payload.seq) {
+      return;
+    }
+
+    clearTimeout(pending.timer);
+    pendings.delete(id);
+
+    const processingMs =
+      typeof payload.t1 === "number" && typeof payload.t0 === "number"
+        ? payload.t1 - payload.t0
+        : null;
+
+    diag.recordAck(id, Date.now() - pending.sentAt, processingMs);
+  });
+
   socket.on("disconnect", () => {
     const released = registry.releaseBySocket(socket.id);
 
     if (!released) {
       return;
     }
+
+    clearPending(released.id);
+    diag.removeClient(released.id);
 
     const voice = projectAudio.voices.get(released.id);
 
@@ -309,8 +378,66 @@ io.on("connection", (socket) => {
 function broadcastState() {
   io.emit(EVENTS.state, {
     clients: projectAudio.snapshot(),
+    diag: diag.snapshot(),
   });
 }
+
+// ------------------------------------------------------------
+// Diagnostics probe loop
+// ------------------------------------------------------------
+
+function sendProbe(id, socket) {
+  const seq = (probeSeqs.get(id) || 0) + 1;
+  const sentAt = Date.now();
+  const timer = setTimeout(() => {
+    const pending = pendings.get(id);
+
+    if (pending && pending.seq === seq) {
+      pendings.delete(id);
+      diag.recordTimeout(id);
+    }
+  }, BASELINE_TIMEOUT_MS);
+
+  probeSeqs.set(id, seq);
+  pendings.set(id, { seq, sentAt, timer });
+  socket.emit(EVENTS.diagProbe, { seq });
+}
+
+function clearPending(id) {
+  const pending = pendings.get(id);
+
+  if (pending) {
+    clearTimeout(pending.timer);
+  }
+
+  pendings.delete(id);
+}
+
+function clearAllPending() {
+  for (const id of [...pendings.keys()]) {
+    clearPending(id);
+  }
+}
+
+// One baseline probe per second per joined client, then a status cycle.
+function diagTick() {
+  if (!diag.running) {
+    return;
+  }
+
+  for (const assignment of registry.list()) {
+    const socket = io.sockets.sockets.get(assignment.socketId);
+
+    if (socket) {
+      sendProbe(assignment.id, socket);
+    }
+  }
+
+  diag.cycleAll();
+  broadcastState();
+}
+
+const diagTimer = setInterval(diagTick, PROBE_INTERVAL_MS);
 
 // ------------------------------------------------------------
 // Shutdown
@@ -319,6 +446,8 @@ function broadcastState() {
 attachShutdown({
   onShutdown: async () => {
     health.setStopping();
+    clearInterval(diagTimer);
+    clearAllPending();
     io.close();
     await projectAudio.stop();
     await closeHttpServer(server);

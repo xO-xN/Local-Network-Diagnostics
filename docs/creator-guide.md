@@ -30,7 +30,7 @@ npm run dev         # Internal 模式（需本机 scsynth 在 57110 端口）
 | 页面 | 地址 | 用途 |
 |---|---|---|
 | Performer | `http://<Host-LAN-IP>:6868/` | 演奏者触摸界面（手机横屏） |
-| Monitor | `http://<Host-LAN-IP>:6869/` | 监视端：客户端列表与声道分配 |
+| Monitor | `http://<Host-LAN-IP>:6869/` | 监视端：网络诊断（Overall 状态、Start/Stop Test、每客户端状态卡片） |
 
 默认端口来自 `manifest.json` 的 `scoreServer.performerPort` / `monitorPort`——这是**唯一来源**。`public/shared.js` 和浏览器都会自动读取，不需要手动同步。
 
@@ -45,8 +45,24 @@ npm run dev         # Internal 模式（需本机 scsynth 在 57110 端口）
 - **每个 voice 输出上限 -6 dB**（在 SynthDef 内 `amp * 0.5` 实现）。
 - 客户端上限 16 个；满员时新客户端被拒绝。
 - 默认声道：**奇数 id → 声道 1，偶数 id → 声道 2**（相对 `PNDS_AUDIO_OUTPUT_BUS`）。
-- Monitor 端可把任意客户端的输出声道改为 1–16；允许重叠。Monitor 页下方显示 **performer 页面的 QR 码**（`GET /qr`，由 `lib/qr.js` 生成）。
+- Monitor 页下方显示 **performer 页面的 QR 码**（`GET /qr`，由 `lib/qr.js` 生成）。
 - 客户端断开后，重连（同一浏览器，token 保存在 localStorage）会**恢复原 id 与最后推子状态**。
+
+## 网络诊断功能（issues #3/#4 起）
+
+本工程的作品语义是**网络诊断**，Monitor 页面即为诊断控制台：
+
+- **Start Test / Stop Test**：Monitor 页面顶部按钮。只有未 join 的 socket（即 monitor 页面本身）能启停测试，joined performer 不能。
+- **探针回路**：测试运行期间，server 每秒（1 Hz）向每个已 join 的 performer 发送 `pnds:diag:probe`；performer 页面收到后立即回 `pnds:diag:ack`（附带 `performance.now()` 收发时间戳）。500 ms 内未收到 ack 记为一次 timeout。RTT 由 server 端计算；monitor 页面不参与探测。
+- **指标**（server 端，`lib/diagnostics.js` 纯逻辑）：RTT p50/p95（滑动窗口 10 个样本）、jitter = 窗口内相邻 RTT 差的 p95、timeout 总数与连续 timeout 数、客户端处理时间（t1−t0，仅记录，详情面板再展示）。
+- **状态机**（优先级从高到低）：Disconnected → Red；连续 3 次 timeout → Red；burst 超时率 > 5% → Red（burst 阶段由后续 issue 接入）；jitter p95 > 25 ms → Yellow；RTT p95 > 100 ms → Yellow；**1–2 次连续 timeout → Yellow**（spec 缺口补齐：正在超时的客户端不得显示 Green，也不能累计恢复计数）；其余满足 Green 条件（jitter < 10 ms 且 RTT p95 < 50 ms）→ Green；介于两者之间 → Yellow。
+- **Gray / 迟加入**：新加入客户端先进入 Gray（warming up，约 2 个探针周期），不参与 Overall。
+- **Hysteresis**：从 Red/Yellow 恢复到 Green 需要连续 10 个良好周期；任一坏周期重置计数；恶化立即生效。
+- **Overall**：所有非 Gray 客户端中最差状态（Red > Yellow > Green）。
+- **Monitor 展示**：顶部 Overall 横幅 + Start/Stop 按钮；每客户端一张卡片（状态色、状态文案、原因、Typical Response = RTT p50、Worst-case Response = RTT p95、Stability (Timing Variation) = jitter）。Red 卡片文案固定为 **"Not suitable for performance"**。
+- **状态文案单一来源**：`public/shared.js` 的 `statusCopy`（Gray/Green/Yellow/Red 四档），server 的 reason 与 monitor 的卡片/横幅都从它读取。
+
+模板遗留的 **Monitor 声道分配下拉已移除**（监视端只做诊断）；`set-out` 事件与 server 端处理保留。见 `docs/handoff.md` 决策记录。
 
 ## 目录结构
 
@@ -62,13 +78,14 @@ lib/                      可复用核心，任何 PNDS 工程通用（template 
   players.js              客户端 id 分配与重连恢复（claim token）
   lifecycle.js            优雅关闭
   qr.js                   performer 页面 QR 码（GET /qr）
+  diagnostics.js          网络诊断：指标 + 状态机（纯逻辑，见"网络诊断功能"）
 audio/                    作品音频语义层：推子 → synth 参数的映射（创作时改这里）
   controller.js           每客户端一个 voice，声道分配，外部 OSC 协议
 public/                   浏览器端（performer + monitor 双角色单页）
   index.html              双角色入口（按端口加载不同脚本）
-  shared.js               浏览器与 server 共用的常量：事件名 / 频率范围（单一事实来源，见下文）
-  performer.js            演奏者横屏推子界面（p5）
-  monitor.js              监视端：列表 + 声道分配
+  shared.js               浏览器与 server 共用的常量：事件名 / 频率范围 / 诊断状态文案（单一事实来源，见下文）
+  performer.js            演奏者横屏推子界面（p5）；自动应答诊断探针
+  monitor.js              监视端：诊断卡片 + Overall 横幅 + Start/Stop（p5）
   style.css
   libraries/p5.min.js     p5 库（本地文件，演出离线可用）
 supercollider/
@@ -90,6 +107,8 @@ docs/                     本指南与交接文档
 | 改声音本身（波形、效果） | `supercollider/source/template-sine.scd`，然后重新编译 |
 | 改演奏者界面 | `public/performer.js`（p5） |
 | 改监视端 | `public/monitor.js` |
+| 改诊断阈值 / 规则 | `lib/diagnostics.js`（状态机、阈值、窗口） |
+| 改状态文案（含 Red 文案） | `public/shared.js` 的 `statusCopy`（唯一一处） |
 | 加 Socket.IO 事件 | `public/shared.js`（事件名）+ `server.js`（处理） |
 | 改推子频率范围 | `public/shared.js` 的 `freqRange`（页面显示与 server 发声自动同步，无需改 `audio/controller.js`） |
 | 改客户端上限 | `manifest.json` 的 `audio.outputChannels`（id 上限 = 输出声道数） |
@@ -99,7 +118,7 @@ docs/                     本指南与交接文档
 `public/shared.js` 是浏览器页面与 Node server **共用同一份常量**的模块：
 
 - 它用 UMD 包装：浏览器里挂到 `window.PNDS`（页面脚本里 `const P = window.PNDS` 取别名），Node 里走 `module.exports`（server 端 `require`）。
-- **Socket.IO 事件名**（`events`）、**频率范围**（`freqRange`）、**客户端上限**（`maxClients`）、**localStorage token 键名**（`tokenKey`）都在这里定义。
+- **Socket.IO 事件名**（`events`）、**频率范围**（`freqRange`）、**客户端上限**（`maxClients`）、**localStorage token 键名**（`tokenKey`）、**诊断状态文案**（`statusCopy`）都在这里定义。
 - **端口**的单一来源是 `manifest.json`（App 工程契约）。`shared.js` 在 Node 端自动从 manifest 读取，浏览器端由 server 动态注入——创作者只需改 manifest.json。
 - 修改频率范围只需改 `freqRange.min / max` 一处：performer 页面的 Hz 显示与 server 端 `audio/controller.js` 的 `mapFreq()`（`FREQ_MIN/FREQ_MAX` 从 shared 读取）自动同步。
 - 本工程的 `tokenKey` 已随改名与工程 id 一致（`local-network-diagnostics-token`）。若由此 fork 出新的工程，记得同步修改这个键，避免不同工程共用同一个 localStorage 键。

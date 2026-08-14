@@ -32,6 +32,16 @@
     maxClients: 16,
     freqRange: { min: 1000, max: 3000 },
 
+    // Diagnostics status copy, shared by the server (reasons in
+    // lib/diagnostics.js) and the monitor page (cards + Overall banner).
+    // Single source of truth — the Red copy must stay explicit (spec).
+    statusCopy: {
+      gray: "Warming up…",
+      green: "Suitable for performance",
+      yellow: "Caution — borderline network",
+      red: "Not suitable for performance",
+    },
+
     // Claim token persisted by the performer page so a reconnect recovers
     // the same client id (localStorage key).
     tokenKey: "local-network-diagnostics-token",
@@ -43,6 +53,15 @@
       control: "control",
       setOut: "set-out",
       state: "state",
+      // Network diagnostics (see lib/diagnostics.js):
+      //   probe: server → client, one per second while a test runs
+      //   ack:   client → server, immediate reply with performance.now()
+      //          receive/reply timestamps (RTT is measured server-side)
+      //   start/stop: monitor page → server
+      diagProbe: "pnds:diag:probe",
+      diagAck: "pnds:diag:ack",
+      diagStart: "pnds:diag:start",
+      diagStop: "pnds:diag:stop",
     },
   };
 });
