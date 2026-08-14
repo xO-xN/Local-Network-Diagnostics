@@ -5,8 +5,8 @@
 // Single source of truth:
 //   Ports   → manifest.json (browser gets them via __config.js injected by the server)
 //   Events  → here (events)
-//   Freq    → here (freqRange)
 //   Token   → here (tokenKey)
+//   Copy/vocabulary → here (statusCopy, diagPhases, diagEvents)
 
 (function (root, factory) {
   if (typeof module !== "undefined" && module.exports) {
@@ -29,8 +29,8 @@
     performerPort: ports.performerPort,
     monitorPort: ports.monitorPort,
 
+    // Client roster cap (id space, PlayerRegistry).
     maxClients: 16,
-    freqRange: { min: 1000, max: 3000 },
 
     // Diagnostics status copy, shared by the server (reasons in
     // lib/diagnostics.js) and the monitor page (cards + Overall banner).
@@ -60,8 +60,6 @@
       join: "join",
       joined: "joined",
       rejected: "rejected",
-      control: "control",
-      setOut: "set-out",
       state: "state",
       // Network diagnostics (see lib/diagnostics.js):
       //   probe: server → client, one per second while a test runs

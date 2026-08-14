@@ -1,100 +1,73 @@
 # Local Network Diagnostics — Creator Guide（创作者开始指南）
 
-这是一个基于 PNDS 模板的可运行 PNDS 数字乐谱工程。当前代码仍是模板基准实现（双推子 sine voice），正在开发为**本地网络诊断工具**——功能按 GitHub issues（自 #2 起）逐步落地，本指南随之更新。
+这是一个**纯网络测试**的 PNDS 工程：**无音频、无 SuperCollider**，server 恒以 `none` 模式（音频禁用）运行。功能按 GitHub issues（自 #2 起）逐步落地，本指南随之更新。
 
 ## 快速开始
 
 ### 1. 安装依赖
 
-PNDS App **不执行 npm install**，所以工程必须自带可用的 `node_modules/`。首次使用本模板：
+PNDS App **不执行 npm install**，所以工程必须自带可用的 `node_modules/`。首次使用：
 
 ```sh
 npm install
 ```
 
-依赖只有四个：`express`、`socket.io`、`osc-min`、`qrcode`。
+依赖只有三个：`express`、`socket.io`、`qrcode`。
 
 ### 2. 运行
 
 脱离 App 单独调试：
 
 ```sh
-npm run dev:none    # 无音频模式（只测试页面与网络）
-npm run dev         # Internal 模式（需本机 scsynth 在 57110 端口）
+npm start    # 不需要任何音频参数；恒为无音频模式
 ```
 
-在 PNDS App 中运行：App 中点击 **Open**，选择本文件夹，音频模式选 **Internal Synth**。
+在 PNDS App 中运行：App 中点击 **Open**，选择本文件夹。App 会按 `manifest.json` 的 `audio.defaultMode: "none"` 启动 server（`--audio-mode none` 被接受但忽略）。
 
 ### 3. 两个页面
 
 | 页面 | 地址 | 用途 |
 |---|---|---|
-| Performer | `http://<Host-LAN-IP>:6868/` | 演奏者触摸界面（手机横屏） |
-| Monitor | `http://<Host-LAN-IP>:6869/` | 监视端：网络诊断控制台（Overall 状态、Start/Stop Test、每客户端状态卡片 + 详情面板） |
+| Performer | `http://<Host-LAN-IP>:6868/` | 手机客户端：自动加入并应答探针，只显示"已连接，正在测速" |
+| Monitor | `http://<Host-LAN-IP>:6869/` | 监视端：居中显示的网络诊断控制台（Overall、Start/Stop、卡片网格、详情弹窗） |
 
 默认端口来自 `manifest.json` 的 `scoreServer.performerPort` / `monitorPort`——这是**唯一来源**。`public/shared.js` 和浏览器都会自动读取，不需要手动同步。
-
-## 当前实现（继承自模板）
-
-- 演奏者界面：**手机横屏**触摸；竖屏时提示旋转。左半屏是 **AMP 推子**，右半屏是 **FREQ 推子**。
-- 推子值经 Socket.IO 发到 score server，由 server 转为 OSC 控制 SuperCollider。
-- 每个加入的客户端获得一个 sine voice（一个 `templateSine` synth）。
-- FREQ 推子映射频率在 `public/shared.js` 的 `freqRange` 定义（**单一事实来源**）：performer 页面用它显示 Hz，server 的 `audio/controller.js` 从同一对象读取并映射为 OSC 频率，改一处两边同步。
-- AMP 推子使用 **audio taper 曲线**（`value²`）：推子下半段控制更细腻。
-- 推子值在 scsynth 端做 **平滑**（`Lag.kr`，amp 50ms / freq 100ms），推子移动是滑动的，不产生突变/zipper noise。
-- **每个 voice 输出上限 -6 dB**（在 SynthDef 内 `amp * 0.5` 实现）。
-- 客户端上限 16 个；满员时新客户端被拒绝。
-- 默认声道：**奇数 id → 声道 1，偶数 id → 声道 2**（相对 `PNDS_AUDIO_OUTPUT_BUS`）。
-- Monitor 页下方显示 **performer 页面的 QR 码**（`GET /qr`，由 `lib/qr.js` 生成）。
-- 客户端断开后，重连（同一浏览器，token 保存在 localStorage）会**恢复原 id 与最后推子状态**。
 
 ## 网络诊断功能（issues #3–#8）
 
 本工程的作品语义是**网络诊断**，Monitor 页面即为诊断控制台：
 
-- **Start Test / Stop Test**：Monitor 页面顶部按钮。只有未 join 的 socket（即 monitor 页面本身）能启停测试，joined performer 不能。
+- **Start Test / Stop Test**：Monitor 页面按钮。只有未 join 的 socket（即 monitor 页面本身）能启停测试，joined performer 不能。
 - **探针回路**：测试运行期间，server 向每个已 join 的 performer 发送 `pnds:diag:probe`；performer 页面收到后立即回 `pnds:diag:ack`（附带 `performance.now()` 收发时间戳）。RTT 由 server 端计算；monitor 页面不参与探测。**双阶段循环**：`[2 s burst @ 30 msg/s，超时 200 ms] → [2 s calm @ 1 Hz，超时 500 ms]` 持续交替，模拟高密度作品负载；同一客户端可同时有多个 in-flight 探针（per-seq 追踪）。
 - **指标**（server 端，`lib/diagnostics.js` 纯逻辑）：RTT p50/p95（滑动窗口 10 个样本）、jitter = 窗口内相邻 RTT 差的 p95、timeout 总数与连续 timeout 数、**丢包率**（timeouts / (acks + timeouts)，仅详情面板）、**burst 窗口超时率**（每个 burst 窗口结束时冻结，喂给状态机）、客户端处理时间（t1−t0，仅详情面板）。
 - **状态机**（优先级从高到低）：Disconnected → Red（立即，跳过 warming up）；连续 3 次 timeout → Red；burst 超时率 > 5% → Red；jitter p95 > 25 ms → Yellow；RTT p95 > 100 ms → Yellow；**1–2 次连续 timeout → Yellow**（spec 缺口补齐：正在超时的客户端不得显示 Green，也不能累计恢复计数）；其余满足 Green 条件（jitter < 10 ms 且 RTT p95 < 50 ms）→ Green；介于两者之间 → Yellow。
 - **Gray / 迟加入**：新加入（或重连）客户端先进入 Gray（warming up，约 2 个探针周期），不参与 Overall；测试中途加入的客户端自动被纳入探测。
 - **Hysteresis**：从 Red/Yellow 恢复到 Green 需要连续 10 个良好周期；任一坏周期重置计数；恶化立即生效。
 - **Overall**：所有**在线**且非 Gray 客户端中最差状态（Red > Yellow > Green）。断开（离线）客户端不参与 Overall，但其红色卡片保留可见。
-- **断开与事件日志**：客户端断开时卡片**保留并立即转 Red**；每个客户端记录事件（Connected / Disconnected / Reconnected，带时间戳，最多 20 条）；重连凭 claim token 恢复原 id，重新经过 Gray warming up 回到 Green。卡片与详情面板展示最近事件（如 "Disconnected 5s ago"）。
-- **Monitor 展示**：顶部 Overall 横幅（运行中显示当前 Burst/Calm 阶段）+ Start/Stop 按钮；每客户端一张卡片（状态色、状态文案、原因、Typical Response = RTT p50、Worst-case Response = RTT p95、Stability (Timing Variation) = jitter、最近事件）。**点击卡片打开详情面板**：p95、丢包率、处理耗时、完整事件日志（这些指标不参与状态判定）。Red 卡片文案固定为 **"Not suitable for performance"**。
+- **断开与事件日志**：客户端断开时卡片**保留并立即转 Red**；每个客户端记录事件（Connected / Disconnected / Reconnected，带时间戳，最多 20 条）；重连凭 claim token 恢复原 id，重新经过 Gray warming up 回到 Green。卡片与详情弹窗展示最近事件（如 "Disconnected 5s ago"）。
+- **Monitor 展示**（参照 Multichannel Signal Generator 的居中浅色卡片设计，纯 DOM，无 p5）：居中 Overall 横幅（运行中显示当前 Burst/Calm 阶段）+ Start/Stop 按钮 + 每客户端一张卡片（状态色、状态文案、原因、Typical Response = RTT p50、Worst-case Response = RTT p95、Stability (Timing Variation) = jitter、最近事件）。**点击卡片打开详情弹窗**：p95、丢包率、处理耗时、完整事件日志（这些指标不参与状态判定）。Red 卡片文案固定为 **"Not suitable for performance"**。页面底部有 performer 页面 QR 码。
+- **Performer 页面**：手机端极简视图——自动加入（凭 localStorage 中的 claim token 恢复身份）、自动应答探针，只显示**"已连接，正在测速"**。
 - **状态文案单一来源**：`public/shared.js` 的 `statusCopy`（Gray/Green/Yellow/Red 四档），server 的 reason 与 monitor 的卡片/横幅都从它读取。
-
-模板遗留的 **Monitor 声道分配下拉已移除**（监视端只做诊断）；`set-out` 事件与 server 端处理保留。见 `docs/handoff.md` 决策记录。
 
 ## 目录结构
 
 ```
-manifest.json             PNDS 工程契约（App 只认它和 server 入口）
+manifest.json             PNDS 工程契约（App 只认它和 server 入口；audio 仅声明 none）
 server.js                 作品主 server：编排协议（通常不用改）
 lib/                      可复用核心，任何 PNDS 工程通用（template 骨架，通常不用改）
-  config.js               manifest / CLI / 端口 / 环境变量解析
+  config.js               manifest / CLI / 端口解析
   network.js              LAN IPv4 枚举
-  health.js               /__pnds/health
-  osc-transport.js        UDP OSC 传输（osc-min + dgram）
-  audio-engine.js         scsynth 会话生命周期（bus / group / synthdef 加载）
+  health.js               /__pnds/health（无音频工程报告 audio.status "disabled"）
   players.js              客户端 id 分配与重连恢复（claim token）
   lifecycle.js            优雅关闭
   qr.js                   performer 页面 QR 码（GET /qr）
   diagnostics.js          网络诊断：指标 + 状态机 + 事件日志（纯逻辑，见"网络诊断功能"）
-audio/                    作品音频语义层：推子 → synth 参数的映射（创作时改这里）
-  controller.js           每客户端一个 voice，声道分配，外部 OSC 协议
 public/                   浏览器端（performer + monitor 双角色单页）
-  index.html              双角色入口（按端口加载不同脚本）
-  shared.js               浏览器与 server 共用的常量：事件名 / 频率范围 / 诊断状态文案（单一事实来源，见下文）
-  performer.js            演奏者横屏推子界面（p5）；自动应答诊断探针
-  monitor.js              监视端：诊断卡片 + Overall 横幅 + Start/Stop + 详情面板（p5）
-  style.css
-  libraries/p5.min.js     p5 库（本地文件，演出离线可用）
-supercollider/
-  source/                 SynthDef 创作源码（.scd）
-    template-sine.scd     本模板的 sine voice 定义
-    build-synthdef.scd    编译脚本：.scd → .scsyndef
-  debug/                  External debug bridge（创作期工具）
-  synthdefs/              已编译 .scsyndef（运行时 artifact，manifest 引用）
+  index.html              双角色入口（按端口加载不同脚本；无 p5）
+  shared.js               浏览器与 server 共用的常量：事件名 / 状态文案 / 诊断词汇表（单一事实来源，见下文）
+  performer.js            手机端：自动加入 + 应答探针，显示"已连接，正在测速"（DOM）
+  monitor.js              监视端：居中卡片控制台 + 详情弹窗（DOM）
+  style.css               设计语言（浅色主题，参照 Multichannel Signal Generator）
 test/                     node --test 回归测试
 docs/                     本指南与交接文档
 ```
@@ -103,51 +76,26 @@ docs/                     本指南与交接文档
 
 | 想做什么 | 改哪里 |
 |---|---|
-| 换作品名 / 端口 / 声道数 | `manifest.json`（改端口只需改这里） |
-| 改推子 → 声音的映射 | `audio/controller.js` |
-| 改声音本身（波形、效果） | `supercollider/source/template-sine.scd`，然后重新编译 |
-| 改演奏者界面 | `public/performer.js`（p5） |
-| 改监视端 | `public/monitor.js` |
+| 换作品名 / 端口 | `manifest.json`（改端口只需改这里） |
+| 改监视端 | `public/monitor.js`（DOM）+ `public/style.css` |
+| 改 performer 端 | `public/performer.js`（DOM） |
 | 改诊断阈值 / 规则 | `lib/diagnostics.js`（状态机、阈值、窗口） |
 | 改状态文案（含 Red 文案） | `public/shared.js` 的 `statusCopy`（唯一一处） |
 | 加 Socket.IO 事件 | `public/shared.js`（事件名）+ `server.js`（处理） |
-| 改推子频率范围 | `public/shared.js` 的 `freqRange`（页面显示与 server 发声自动同步，无需改 `audio/controller.js`） |
-| 改客户端上限 | `manifest.json` 的 `audio.outputChannels`（id 上限 = 输出声道数） |
+| 改客户端上限 | `public/shared.js` 的 `maxClients` |
 
 ## 单一事实来源（Single Source of Truth）
 
 `public/shared.js` 是浏览器页面与 Node server **共用同一份常量**的模块：
 
 - 它用 UMD 包装：浏览器里挂到 `window.PNDS`（页面脚本里 `const P = window.PNDS` 取别名），Node 里走 `module.exports`（server 端 `require`）。
-- **Socket.IO 事件名**（`events`）、**频率范围**（`freqRange`）、**客户端上限**（`maxClients`）、**localStorage token 键名**（`tokenKey`）、**诊断状态文案**（`statusCopy`）都在这里定义。
+- **Socket.IO 事件名**（`events`）、**客户端上限**（`maxClients`）、**localStorage token 键名**（`tokenKey`）、**诊断状态文案**（`statusCopy`）、**诊断词汇表**（`diagPhases` / `diagEvents`）都在这里定义。
 - **端口**的单一来源是 `manifest.json`（App 工程契约）。`shared.js` 在 Node 端自动从 manifest 读取，浏览器端由 server 动态注入——创作者只需改 manifest.json。
-- 修改频率范围只需改 `freqRange.min / max` 一处：performer 页面的 Hz 显示与 server 端 `audio/controller.js` 的 `mapFreq()`（`FREQ_MIN/FREQ_MAX` 从 shared 读取）自动同步。
-- 本工程的 `tokenKey` 已随改名与工程 id 一致（`local-network-diagnostics-token`）。若由此 fork 出新的工程，记得同步修改这个键，避免不同工程共用同一个 localStorage 键。
+- 本工程的 `tokenKey` 与工程 id 一致（`local-network-diagnostics-token`）。若由此 fork 出新的工程，记得同步修改这个键，避免不同工程共用同一个 localStorage 键。
 
-## 声音：编辑与编译 SynthDef
+## 音频
 
-`.scd` 是创作期源码，`.scsyndef` 是运行时 artifact。改完 `.scd` 后必须重新编译，否则 App 加载的是旧声音：
-
-```sh
-npm run build:synthdef
-# 等价于: sclang supercollider/source/build-synthdef.scd
-```
-
-编译产物写入 `supercollider/synthdefs/template-sine.scsyndef`。
-
-## 音频模式
-
-| 模式 | 说明 |
-|---|---|
-| `internal` | App 托管 scsynth，加载编译好的 `.scsyndef`（演出模式） |
-| `external` | 向自定义 OSC target 发送作品协议（`/c<id>/amp`、`/c<id>/freq`、`/c<id>/out`） |
-| `none` | 不建立音频输出（只测试页面与网络） |
-
-External 模式调试：在 SuperCollider IDE 中先运行 `supercollider/source/template-sine.scd`，再运行 `supercollider/debug/template-debug.scd`，然后：
-
-```sh
-node server.js --audio-mode external --osc-target 127.0.0.1:57120
-```
+本工程**无音频**：没有 `audio/`、没有 `supercollider/`，manifest 只声明 `audio.supportedModes: ["none"]`，server 不加载任何音频引擎。`--audio-mode` 参数仅为 App 兼容而接受、值被忽略。
 
 ## 健康检查
 
@@ -157,11 +105,11 @@ node server.js --audio-mode external --osc-target 127.0.0.1:57120
 curl http://127.0.0.1:6868/__pnds/health
 ```
 
-PNDS App 以 JSON 中 `status === "ready"` 为显示条件。
+PNDS App 以 JSON 中 `status === "ready"` 为显示条件。无音频工程按运行契约返回 `audio.status: "disabled"`、`audio.target: null`。
 
 ## test/ 文件夹
 
-`test/` 是给 AI 编程助手用的回归测试。创作者不需要手动运行，也不需要理解它们。当你通过 AI 修改工程时，AI 会用它来验证改动没有破坏已有功能（如客户端加入、推子映射、重连恢复等）。
+`test/` 是给 AI 编程助手用的回归测试。创作者不需要手动运行，也不需要理解它们。当你通过 AI 修改工程时，AI 会用它来验证改动没有破坏已有功能（如客户端加入、重连恢复、诊断状态机、burst 循环、E2E 探测等）。
 
 ## 发布
 

@@ -11,15 +11,7 @@
     "monitorPort": 6869
   },
   "audio": {
-    "defaultMode": "internal",
-    "supportedModes": ["internal", "external", "none"],
-    "outputChannels": 16,
-    "synthdefs": ["supercollider/synthdefs/template-sine.scsyndef"],
-    "scsynth": {
-      "sampleRate": 48000,
-      "blockSize": 64,
-      "audioBusChannels": 64
-    },
-    "standaloneTarget": "127.0.0.1:57110"
+    "defaultMode": "none",
+    "supportedModes": ["none"]
   }
 }

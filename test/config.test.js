@@ -4,8 +4,7 @@ const path = require("node:path");
 
 const {
   loadManifest,
-  resolveAudioMode,
-  resolveOscTarget,
+  parseCliOptions,
   resolveServerConfig,
 } = require("../lib/config");
 
@@ -15,38 +14,23 @@ test("loadManifest reads the project manifest", () => {
   const manifest = loadManifest(PROJECT_ROOT);
 
   assert.equal(manifest.schemaVersion, 1);
-  assert.equal(manifest.audio.outputChannels, 16);
+  assert.equal(manifest.scoreServer.performerPort, 6868);
+  assert.equal(manifest.scoreServer.monitorPort, 6869);
   assert.notEqual(
     manifest.scoreServer.performerPort,
     manifest.scoreServer.monitorPort,
   );
+
+  // No-audio project: the only supported mode is "none".
+  assert.deepEqual(manifest.audio.supportedModes, ["none"]);
+  assert.equal(manifest.audio.defaultMode, "none");
 });
 
-test("resolveAudioMode falls back to the manifest default", () => {
-  const manifest = loadManifest(PROJECT_ROOT);
-
-  assert.equal(resolveAudioMode(undefined, manifest), "internal");
-  assert.equal(resolveAudioMode("none", manifest), "none");
-  assert.throws(() => resolveAudioMode("bogus", manifest));
-});
-
-test("resolveOscTarget priority: env > cli > manifest", () => {
-  const manifest = loadManifest(PROJECT_ROOT);
-
-  assert.equal(
-    resolveOscTarget(undefined, manifest, {
-      PNDS_OSC_TARGET: "10.0.0.5:9999",
-    }),
-    "10.0.0.5:9999",
-  );
-  assert.equal(
-    resolveOscTarget("127.0.0.1:57120", manifest, {}),
-    "127.0.0.1:57120",
-  );
-  assert.equal(
-    resolveOscTarget(undefined, manifest, {}),
-    "127.0.0.1:57110",
-  );
+test("parseCliOptions accepts --audio-mode for App compatibility and --help", () => {
+  assert.equal(parseCliOptions(["--audio-mode", "none"]).audioMode, "none");
+  assert.equal(parseCliOptions(["--audio-mode=internal"]).audioMode, "internal");
+  assert.equal(parseCliOptions(["--help"]).help, true);
+  assert.deepEqual(parseCliOptions([]), {});
 });
 
 test("resolveServerConfig returns valid distinct ports", () => {
@@ -54,4 +38,15 @@ test("resolveServerConfig returns valid distinct ports", () => {
 
   assert.equal(config.performerPort, 6868);
   assert.equal(config.monitorPort, 6869);
+  assert.equal(config.entry, "server.js");
+});
+
+test("resolveServerConfig rejects equal ports", () => {
+  const manifest = loadManifest(PROJECT_ROOT);
+  manifest.scoreServer = {
+    performerPort: 6868,
+    monitorPort: 6868,
+  };
+
+  assert.throws(() => resolveServerConfig(manifest), /must be different/);
 });

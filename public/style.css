@@ -1,4 +1,28 @@
-/* Local Network Diagnostics — shared styles for performer + monitor pages */
+/* Local Network Diagnostics — both pages.
+ *
+ * Visual language follows the "Multichannel Signal Generator" example:
+ * light theme, centered flex column, white rounded cards with subtle
+ * shadows, indigo accent. No p5 — plain DOM.
+ */
+
+:root {
+  --bg: #f4f5fa;
+  --card: #ffffff;
+  --text: #1c1e2b;
+  --muted: #8a8fa3;
+  --accent: #5a4ff3;
+  --accent-soft: #e8eafd;
+  --danger: #e11d48;
+  --track: #e8ebf7;
+  --green: #16a34a;
+  --green-soft: #e7f6ec;
+  --yellow: #d97706;
+  --yellow-soft: #fdf3e3;
+  --red: #e11d48;
+  --red-soft: #fde8ee;
+  --gray: #8a8fa3;
+  --gray-soft: #eef0f6;
+}
 
 * {
   box-sizing: border-box;
@@ -7,82 +31,448 @@
 html,
 body {
   margin: 0;
-  padding: 0;
-  height: 100%;
-  background: #14161c;
-  color: #e8ecf4;
-  font-family: -apple-system, "Helvetica Neue", sans-serif;
-  overflow: hidden;
+  min-height: 100%;
 }
 
-#stage {
-  width: 100%;
-  height: 100%;
-}
-
-/* ---- rotate hint overlay (performer) ---- */
-
-#rotate-overlay {
-  position: fixed;
-  inset: 0;
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+    "PingFang SC", "Microsoft YaHei", sans-serif;
+  background: var(--bg);
+  color: var(--text);
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  background: rgba(14, 15, 20, 0.94);
-  z-index: 100;
+  min-height: 100vh;
+  padding: 20px;
+}
+
+#app {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+}
+
+header {
   text-align: center;
 }
 
-#rotate-overlay.hidden {
+header h1 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 4px;
+}
+
+header .sub {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------
+ * Status palette (applied via .st-* on cards / overall)
+ * ------------------------------------------------------------ */
+
+.st-green {
+  --st: var(--green);
+  --st-soft: var(--green-soft);
+}
+
+.st-yellow {
+  --st: var(--yellow);
+  --st-soft: var(--yellow-soft);
+}
+
+.st-red {
+  --st: var(--red);
+  --st-soft: var(--red-soft);
+}
+
+.st-gray,
+.st-idle {
+  --st: var(--gray);
+  --st-soft: var(--gray-soft);
+}
+
+.dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--track);
+  flex: none;
+}
+
+.dot.on {
+  background: var(--st);
+}
+
+/* ------------------------------------------------------------
+ * Overall banner (monitor)
+ * ------------------------------------------------------------ */
+
+.overall {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--card);
+  border: 1px solid var(--track);
+  border-radius: 12px;
+  padding: 14px 22px;
+  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.08);
+  min-width: min(520px, 100%);
+  justify-content: center;
+}
+
+.overall .dot {
+  width: 16px;
+  height: 16px;
+  background: var(--st);
+}
+
+.overall-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.overall-copy {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--st);
+}
+
+.phase {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent);
+  background: var(--accent-soft);
+  border-radius: 999px;
+  padding: 3px 10px;
   display: none;
 }
 
-#rotate-overlay p {
-  margin: 0;
+.phase.on {
+  display: inline-block;
 }
 
-#rotate-overlay p:first-child {
-  font-size: 22px;
-  font-weight: 600;
+/* ------------------------------------------------------------
+ * Controls (monitor)
+ * ------------------------------------------------------------ */
+
+.controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
 }
 
-#rotate-overlay p:last-child {
+.btn {
+  font: inherit;
   font-size: 14px;
-  color: #9aa3b5;
-}
-
-/* ---- monitor QR code ---- */
-
-.qr-image {
-  width: 150px;
-  height: 150px;
-  padding: 8px;
-  background: #ffffff;
-  border-radius: 8px;
-}
-
-/* ---- monitor diagnostics controls ---- */
-
-.diag-button {
-  min-width: 150px;
-  height: 42px;
-  border: 1px solid #3a4050;
-  border-radius: 8px;
-  background: #22262f;
-  color: #e8ecf4;
-  font-size: 15px;
   font-weight: 600;
+  color: #fff;
+  background: var(--accent);
+  border: none;
+  border-radius: 10px;
+  padding: 10px 28px;
   cursor: pointer;
+  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.15);
+  transition: background 0.12s;
 }
 
-.diag-button:hover {
-  border-color: #94a3b8;
+.btn:hover {
+  background: #4538e0;
 }
 
-.diag-button.running {
-  background: #7c2d12;
-  border-color: #f87171;
-  color: #fecaca;
+.btn.running {
+  background: var(--danger);
+}
+
+.btn.running:hover {
+  background: #b9163a;
+}
+
+/* ------------------------------------------------------------
+ * Client cards (monitor)
+ * ------------------------------------------------------------ */
+
+#cards {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 10px;
+  width: min(960px, 100%);
+}
+
+.client-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  background: var(--card);
+  border: 1px solid var(--track);
+  border-radius: 10px;
+  padding: 10px 14px 12px;
+  width: 250px;
+  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.06);
+  cursor: pointer;
+  user-select: none;
+  transition: border-color 0.12s, box-shadow 0.12s;
+  border-left: 3px solid var(--st);
+}
+
+.client-card:hover {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.client-card .head {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.client-card .status-word {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--st);
+}
+
+.client-card .copy {
+  font-size: 11px;
+  color: var(--st);
+}
+
+.client-card .reason {
+  font-size: 11px;
+  color: var(--muted);
+  min-height: 14px;
+}
+
+.client-card .row {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+}
+
+.client-card .row .k {
+  color: var(--muted);
+}
+
+.client-card .row .v {
+  font-variant-numeric: tabular-nums;
+}
+
+.client-card .event {
+  font-size: 11px;
+  color: var(--muted);
+  border-top: 1px solid var(--track);
+  margin-top: 4px;
+  padding-top: 4px;
+}
+
+.client-card .event.disconnected {
+  color: var(--red);
+}
+
+.hint {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------
+ * Details modal (monitor)
+ * ------------------------------------------------------------ */
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(28, 30, 43, 0.45);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 10;
+}
+
+.modal.hidden {
+  display: none;
+}
+
+.modal-card {
+  background: var(--card);
+  border-radius: 14px;
+  box-shadow: 0 10px 40px rgba(23, 26, 43, 0.25);
+  width: min(420px, 100%);
+  max-height: 80vh;
+  overflow-y: auto;
+  padding: 18px 20px;
+  border-top: 4px solid var(--st);
+}
+
+.modal-card .head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.modal-card .head .title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.modal-card .close {
+  border: none;
+  background: none;
+  font-size: 20px;
+  line-height: 1;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0 2px;
+}
+
+.modal-card .close:hover {
+  color: var(--text);
+}
+
+.modal-card .status-line {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--st);
+  margin-bottom: 2px;
+}
+
+.modal-card .reason {
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 10px;
+}
+
+.modal-card .rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  border-top: 1px solid var(--track);
+  padding-top: 10px;
+  margin-bottom: 10px;
+}
+
+.modal-card .rows .row {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+}
+
+.modal-card .rows .k {
+  color: var(--muted);
+}
+
+.modal-card .rows .v {
+  font-variant-numeric: tabular-nums;
+}
+
+.modal-card h3 {
+  font-size: 12px;
+  font-weight: 700;
+  margin: 0 0 6px;
+  color: var(--text);
+}
+
+.log {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-top: 1px solid var(--track);
+  padding-top: 10px;
+}
+
+.log .entry {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.log .entry b {
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* ------------------------------------------------------------
+ * QR row (monitor)
+ * ------------------------------------------------------------ */
+
+.qr-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+}
+
+.qr-row img {
+  width: 140px;
+  height: 140px;
+  border-radius: 10px;
+  border: 1px solid var(--track);
+  background: #fff;
+}
+
+.qr-row .sub {
+  font-size: 11px;
+  color: var(--muted);
+}
+
+/* ------------------------------------------------------------
+ * Performer page
+ * ------------------------------------------------------------ */
+
+.perf {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border-radius: 14px;
+  padding: 36px 48px;
+  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.08);
+  min-width: min(320px, 100%);
+}
+
+.perf .dot {
+  width: 18px;
+  height: 18px;
+  background: var(--track);
+  transition: background 0.2s;
+}
+
+.perf .dot.ok {
+  background: var(--green);
+  box-shadow: 0 0 0 6px var(--green-soft);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 0 4px var(--green-soft);
+  }
+  50% {
+    box-shadow: 0 0 0 10px var(--green-soft);
+  }
+}
+
+.perf .status {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.perf .meta {
+  font-size: 12px;
+  color: var(--muted);
 }

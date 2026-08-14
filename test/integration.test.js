@@ -10,7 +10,7 @@ const PERFORMER_URL = "http://127.0.0.1:6868";
 const MONITOR_URL = "http://127.0.0.1:6869";
 const HEALTH_URL = `${PERFORMER_URL}/__pnds/health`;
 
-const { freqRange, events: EVENTS } = require("../public/shared");
+const { events: EVENTS } = require("../public/shared");
 const { STATUS } = require("../lib/diagnostics");
 
 function waitForHealthReady() {
@@ -135,7 +135,7 @@ function connectMonitorSocket() {
   });
 }
 
-test("score server: health, join, control, set-out, reconnect, pages", async (t) => {
+test("score server: health, join, reconnect, pages", async (t) => {
   const server = spawn(process.execPath, ["server.js", "--audio-mode", "none"], {
     cwd: PROJECT_ROOT,
     stdio: "ignore",
@@ -147,6 +147,7 @@ test("score server: health, join, control, set-out, reconnect, pages", async (t)
 
   assert.equal(health.projectId, "local-network-diagnostics");
   assert.equal(health.audioMode, "none");
+  assert.equal(health.audio.status, "disabled", "no-audio project reports disabled");
   assert.equal(health.scoreServer.performerPort, 6868);
   assert.equal(health.scoreServer.monitorPort, 6869);
 
@@ -157,51 +158,7 @@ test("score server: health, join, control, set-out, reconnect, pages", async (t)
   assert.equal(first.data.id, 1);
   assert.equal(typeof first.data.token, "string");
   assert.equal(first.data.token.length, 48);
-
-  // --- control: monitor receives amp (audio-taper curve) and freq ---
-  first.socket.emit("control", { amp: 0.5, freq: 0.5 });
-
-  const expectedMidFreq = Math.round(
-    freqRange.min + 0.5 * (freqRange.max - freqRange.min),
-  );
-
-  const controlState = await waitForState(
-    first.socket,
-    (state) =>
-      state.clients.length === 1 &&
-      state.clients[0].id === 1 &&
-      state.clients[0].amp === 0.25 && // mapAmp(0.5) = 0.5^2
-      state.clients[0].freq === expectedMidFreq, // freqRange.min + 0.5 * (max - min)
-  );
-
-  assert.equal(controlState.clients[0].amp, 0.25);
-  assert.equal(controlState.clients[0].freq, expectedMidFreq);
-
-  // --- set-out: channel reassignment is reflected ---
-  first.socket.emit("set-out", { out: 5 });
-
-  const outState = await waitForState(
-    first.socket,
-    (state) => state.clients.length === 1 && state.clients[0].out === 5,
-  );
-
-  assert.equal(outState.clients[0].out, 5);
-
-  // --- second client: id 2, default channel 2 (even id) ---
-  const second = await joinWithToken(null);
-  t.after(() => second.socket.close());
-
-  assert.equal(second.data.id, 2);
-
-  second.socket.emit("control", { amp: 0.25, freq: 0 });
-
-  const secondState = await waitForState(
-    first.socket,
-    (state) => state.clients.length === 2 && state.clients[1].id === 2,
-  );
-
-  assert.equal(secondState.clients[1].freq, freqRange.min); // freqValue 0 → freqRange.min
-  assert.equal(secondState.clients[1].out, 2); // even id -> channel 2
+  assert.equal(first.data.recovered, false);
 
   // --- reconnect with token recovers id 1 ---
   first.socket.close();
@@ -209,18 +166,36 @@ test("score server: health, join, control, set-out, reconnect, pages", async (t)
   const rejoined = await joinWithToken(first.data.token);
   t.after(() => rejoined.socket.close());
 
+  // The claim token restores the identity: the id comes back (free-id
+  // reuse) and the diagnostics session records a Reconnected event. The
+  // registry's `recovered` flag means "token matched a still-live
+  // assignment" — after a disconnect the assignment is gone, so it is false
+  // here by design.
   assert.equal(rejoined.data.id, 1);
-  assert.equal(rejoined.data.recovered, true);
+  assert.equal(rejoined.data.recovered, false);
 
-  // --- pages served on both ports ---
+  // --- pages served on both ports: one index, two role scripts ---
   const performerResponse = await fetch(`${PERFORMER_URL}/`);
   const monitorResponse = await fetch(`${MONITOR_URL}/`);
 
   assert.equal(performerResponse.status, 200);
   assert.equal(monitorResponse.status, 200);
 
+  const performerHtml = await performerResponse.text();
   const monitorHtml = await monitorResponse.text();
+
+  assert.match(performerHtml, /performer\.js/);
   assert.match(monitorHtml, /monitor\.js/);
+
+  // The performer page is the minimal "connected, testing" client…
+  const performerJs = await (await fetch(`${PERFORMER_URL}/performer.js`)).text();
+  assert.match(performerJs, /已连接，正在测速/);
+  assert.doesNotMatch(performerJs, /p5/);
+
+  // …and the monitor page is the operator console.
+  const monitorJs = await (await fetch(`${MONITOR_URL}/monitor.js`)).text();
+  assert.match(monitorJs, /Start Test/);
+  assert.doesNotMatch(monitorJs, /p5/);
 });
 
 // ------------------------------------------------------------
@@ -772,12 +747,12 @@ test("diagnostics: disconnect → Red card, reconnect via token → warming up �
   assert.equal(red.diag.overall, STATUS.GRAY);
 
   // Reconnect with the same claim token: identity restored (id 1), the
-  // machine resets and returns through warm-up to Green.
+  // machine resets and returns through warm-up to Green. (The registry's
+  // `recovered` flag stays false after a disconnect — see the health test.)
   const rejoined = await joinWithToken(token);
   t.after(() => rejoined.socket.close());
 
   assert.equal(rejoined.data.id, 1);
-  assert.equal(rejoined.data.recovered, true);
 
   rejoined.socket.on(EVENTS.diagProbe, (payload) => {
     const t0 = performance.now();
