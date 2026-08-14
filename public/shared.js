@@ -42,6 +42,16 @@
       red: "Not suitable for performance",
     },
 
+    // Diagnostics protocol vocabulary, shared by lib/diagnostics.js
+    // (producer) and the monitor page (consumer): the burst/calm phase and
+    // the per-client event-log types. Single source of truth.
+    diagPhases: { burst: "burst", calm: "calm" },
+    diagEvents: {
+      connected: "connected",
+      disconnected: "disconnected",
+      reconnected: "reconnected",
+    },
+
     // Claim token persisted by the performer page so a reconnect recovers
     // the same client id (localStorage key).
     tokenKey: "local-network-diagnostics-token",

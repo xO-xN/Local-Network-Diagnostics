@@ -6,7 +6,8 @@
 // - assigns client ids, restores them on reconnect (claim token)
 // - forwards fader controls to the audio layer
 // - broadcasts client state to the monitor page
-// - runs the network diagnostics probe loop (start/stop from the monitor)
+// - runs the network diagnostics test (baseline + burst phases, start/stop
+//   from the monitor, disconnect tracking)
 // - shuts down cleanly on SIGINT / SIGTERM
 
 const path = require("node:path");
@@ -29,6 +30,10 @@ const {
   DiagnosticsSession,
   PROBE_INTERVAL_MS,
   BASELINE_TIMEOUT_MS,
+  BURST_INTERVAL_MS,
+  BURST_TIMEOUT_MS,
+  BURST_PHASE_MS,
+  CALM_PHASE_MS,
 } = require("./lib/diagnostics");
 const { qrHandler } = require("./lib/qr");
 const { ProjectAudio } = require("./audio/controller");
@@ -121,10 +126,19 @@ const registry = new PlayerRegistry({
 // status. The probe loop below owns all timers.
 const diag = new DiagnosticsSession();
 
-// In-flight probes per client id: { seq, sentAt, timer }. A probe is
-// pending from the moment it is sent until its ack or its timeout.
+// In-flight probes per client id: id -> seq -> { sentAt, timer }. A probe is
+// pending from the moment it is sent until its ack or its timeout. Burst
+// phase sends ~30 probes per second per client, so several can be in flight
+// at once — hence the per-seq map (baseline's single-pending invariant no
+// longer holds).
 const pendings = new Map();
 const probeSeqs = new Map(); // per-client probe sequence counters
+
+// Burst phase state: the test alternates [2 s burst @ 30 msg/s] →
+// [2 s calm @ 1 Hz] while running (spec; issue #5).
+let burstActive = false;
+let phaseTimer = null;
+let freezeTimer = null; // defers the burst-window freeze past the window tail
 
 // Last known controls per claim token, restored when a client reconnects.
 // (Ids are reused after a disconnect; the token is the persistent identity.)
@@ -205,7 +219,7 @@ io.on("connection", (socket) => {
       return;
     }
 
-    diag.addClient(result.id);
+    diag.addClient(result.id, Date.now());
 
     try {
       if (!projectAudio.voices.has(result.id)) {
@@ -300,19 +314,21 @@ io.on("connection", (socket) => {
   // joined performers only (the monitor socket never joins, so it is never
   // probed itself). Joined performers cannot control the test.
   socket.on(EVENTS.diagStart, () => {
-    if (registry.findIdBySocket(socket.id) !== null) {
+    if (registry.findIdBySocket(socket.id) !== null || diag.running) {
       return;
     }
 
     diag.start();
+    enterBurstPhase();
     broadcastState();
   });
 
   socket.on(EVENTS.diagStop, () => {
-    if (registry.findIdBySocket(socket.id) !== null) {
+    if (registry.findIdBySocket(socket.id) !== null || !diag.running) {
       return;
     }
 
+    stopBurstCycle();
     clearAllPending();
     diag.stop();
     broadcastState();
@@ -325,16 +341,16 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const pending = pendings.get(id);
+    const bySeq = pendings.get(id);
+    const pending = bySeq && bySeq.get(payload.seq);
 
     // A late ack for an already-timed-out probe carries a stale seq and is
     // ignored; the timeout already counted.
-    if (!pending || pending.seq !== payload.seq) {
+    if (!pending) {
       return;
     }
 
-    clearTimeout(pending.timer);
-    pendings.delete(id);
+    removePending(id, payload.seq);
 
     const processingMs =
       typeof payload.t1 === "number" && typeof payload.t0 === "number"
@@ -352,7 +368,10 @@ io.on("connection", (socket) => {
     }
 
     clearPending(released.id);
-    diag.removeClient(released.id);
+
+    // The card stays, flips Red immediately and the disconnect is logged
+    // (issue #6); a reconnect restores the identity via the claim token.
+    diag.disconnectClient(released.id, Date.now());
 
     const voice = projectAudio.voices.get(released.id);
 
@@ -378,7 +397,7 @@ io.on("connection", (socket) => {
 function broadcastState() {
   io.emit(EVENTS.state, {
     clients: projectAudio.snapshot(),
-    diag: diag.snapshot(),
+    diag: diag.snapshot(Date.now()),
   });
 }
 
@@ -386,31 +405,57 @@ function broadcastState() {
 // Diagnostics probe loop
 // ------------------------------------------------------------
 
-function sendProbe(id, socket) {
+function sendProbe(id, socket, timeoutMs) {
   const seq = (probeSeqs.get(id) || 0) + 1;
   const sentAt = Date.now();
   const timer = setTimeout(() => {
-    const pending = pendings.get(id);
-
-    if (pending && pending.seq === seq) {
-      pendings.delete(id);
+    if (removePending(id, seq)) {
       diag.recordTimeout(id);
     }
-  }, BASELINE_TIMEOUT_MS);
+  }, timeoutMs);
 
   probeSeqs.set(id, seq);
-  pendings.set(id, { seq, sentAt, timer });
+
+  let bySeq = pendings.get(id);
+
+  if (!bySeq) {
+    bySeq = new Map();
+    pendings.set(id, bySeq);
+  }
+
+  bySeq.set(seq, { sentAt, timer });
   socket.emit(EVENTS.diagProbe, { seq });
 }
 
-function clearPending(id) {
-  const pending = pendings.get(id);
+// Removes one in-flight probe and prunes the per-client map when it empties.
+// Returns true when the probe was actually pending.
+function removePending(id, seq) {
+  const bySeq = pendings.get(id);
 
-  if (pending) {
-    clearTimeout(pending.timer);
+  if (!bySeq || !bySeq.has(seq)) {
+    return false;
   }
 
-  pendings.delete(id);
+  clearTimeout(bySeq.get(seq).timer);
+  bySeq.delete(seq);
+
+  if (bySeq.size === 0) {
+    pendings.delete(id);
+  }
+
+  return true;
+}
+
+function clearPending(id) {
+  const bySeq = pendings.get(id);
+
+  if (bySeq) {
+    for (const pending of bySeq.values()) {
+      clearTimeout(pending.timer);
+    }
+
+    pendings.delete(id);
+  }
 }
 
 function clearAllPending() {
@@ -419,17 +464,20 @@ function clearAllPending() {
   }
 }
 
-// One baseline probe per second per joined client, then a status cycle.
+// One probe cycle per second: baseline probes only in the calm phase (the
+// burst timer covers the burst phase), then a status cycle + broadcast.
 function diagTick() {
   if (!diag.running) {
     return;
   }
 
-  for (const assignment of registry.list()) {
-    const socket = io.sockets.sockets.get(assignment.socketId);
+  if (!burstActive) {
+    for (const assignment of registry.list()) {
+      const socket = io.sockets.sockets.get(assignment.socketId);
 
-    if (socket) {
-      sendProbe(assignment.id, socket);
+      if (socket) {
+        sendProbe(assignment.id, socket, BASELINE_TIMEOUT_MS);
+      }
     }
   }
 
@@ -440,6 +488,57 @@ function diagTick() {
 const diagTimer = setInterval(diagTick, PROBE_INTERVAL_MS);
 
 // ------------------------------------------------------------
+// Burst phase (issue #5): while the test runs, alternate 2 s of 30 msg/s
+// probes (200 ms timeout) with 2 s of baseline (1 Hz / 500 ms), repeating.
+// ------------------------------------------------------------
+
+function burstTick() {
+  if (!diag.running || !burstActive) {
+    return;
+  }
+
+  for (const assignment of registry.list()) {
+    const socket = io.sockets.sockets.get(assignment.socketId);
+
+    if (socket) {
+      sendProbe(assignment.id, socket, BURST_TIMEOUT_MS);
+    }
+  }
+}
+
+const burstTimer = setInterval(burstTick, BURST_INTERVAL_MS);
+
+function enterBurstPhase() {
+  burstActive = true;
+  diag.setPhase(shared.diagPhases.burst);
+  diag.beginBurstWindow();
+  phaseTimer = setTimeout(enterCalmPhase, BURST_PHASE_MS);
+}
+
+function enterCalmPhase() {
+  burstActive = false;
+  diag.setPhase(shared.diagPhases.calm);
+  // Freeze the window's timeout rate a burst-timeout after the last probe:
+  // probes sent in the window's tail time out up to 200 ms later and must
+  // still count towards this window, not the next one.
+  freezeTimer = setTimeout(() => {
+    diag.endBurstWindow();
+    freezeTimer = null;
+  }, BURST_TIMEOUT_MS);
+  phaseTimer = setTimeout(enterBurstPhase, CALM_PHASE_MS);
+}
+
+function stopBurstCycle() {
+  burstActive = false;
+  diag.setPhase(shared.diagPhases.calm);
+  clearTimeout(phaseTimer);
+  phaseTimer = null;
+  clearTimeout(freezeTimer);
+  freezeTimer = null;
+  diag.endBurstWindow();
+}
+
+// ------------------------------------------------------------
 // Shutdown
 // ------------------------------------------------------------
 
@@ -447,6 +546,9 @@ attachShutdown({
   onShutdown: async () => {
     health.setStopping();
     clearInterval(diagTimer);
+    clearInterval(burstTimer);
+    clearTimeout(phaseTimer);
+    clearTimeout(freezeTimer);
     clearAllPending();
     io.close();
     await projectAudio.stop();

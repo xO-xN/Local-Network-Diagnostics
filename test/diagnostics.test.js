@@ -84,6 +84,55 @@ test("MetricsCollector: reset clears everything", () => {
   assert.equal(collector.consecutiveTimeouts, 0);
   assert.equal(collector.samples.length, 0);
   assert.equal(collector.lastRtt, null);
+  assert.equal(collector.acks, 0);
+  assert.equal(collector.lossRate, 0);
+  assert.equal(collector.burstTimeoutRate, 0);
+});
+
+test("MetricsCollector: loss rate = timeouts / (acks + timeouts)", () => {
+  const collector = new MetricsCollector();
+
+  assert.equal(collector.lossRate, 0, "no probes yet → 0");
+
+  collector.record(5);
+  collector.record(5);
+  collector.record(5);
+  assert.equal(collector.acks, 3);
+  assert.equal(collector.lossRate, 0);
+
+  collector.recordTimeout();
+  assert.equal(collector.timeouts, 1);
+  assert.equal(collector.lossRate, 0.25, "1 timeout out of 4 probes");
+});
+
+test("MetricsCollector: burst timeout rate is computed per completed burst window", () => {
+  const collector = new MetricsCollector();
+
+  assert.equal(collector.burstTimeoutRate, 0, "no window completed yet");
+
+  collector.beginBurstWindow();
+  collector.record(5);
+  collector.record(5);
+  collector.recordTimeout();
+  collector.recordTimeout();
+  // During the window the rate is still the last completed window's (0).
+  assert.equal(collector.burstTimeoutRate, 0);
+
+  collector.endBurstWindow();
+  assert.equal(collector.burstTimeoutRate, 0.5, "2 timeouts out of 4 probes");
+
+  // A new window starts from scratch; the frozen rate survives until the
+  // next window completes.
+  collector.beginBurstWindow();
+  collector.record(5);
+  assert.equal(collector.burstTimeoutRate, 0.5);
+  collector.endBurstWindow();
+  assert.equal(collector.burstTimeoutRate, 0, "1 ack, 0 timeouts");
+
+  // An empty window keeps the previous rate rather than dividing by zero.
+  collector.beginBurstWindow();
+  collector.endBurstWindow();
+  assert.equal(collector.burstTimeoutRate, 0);
 });
 
 // ------------------------------------------------------------
@@ -299,6 +348,24 @@ test("StatusMachine: reset returns to gray", () => {
   assert.equal(machine.cycles, 0);
 });
 
+test("StatusMachine: disconnected is Red immediately, even during warm-up", () => {
+  const machine = new StatusMachine({ warmupCycles: 2 });
+
+  // A disconnect skips the warm-up gray guard — priority 1 of the spec.
+  machine.cycle({ ...good, disconnected: true, samples: 0 });
+  assert.equal(machine.status, STATUS.RED);
+  assert.equal(machine.reason, "Disconnected");
+
+  // From Green, a disconnect flips Red instantly and resets recovery credit.
+  const healthy = new StatusMachine({ warmupCycles: 1 });
+  healthy.cycle({ ...good, samples: 1 });
+  assert.equal(healthy.status, STATUS.GREEN);
+
+  healthy.cycle({ ...good, disconnected: true, samples: 1 });
+  assert.equal(healthy.status, STATUS.RED);
+  assert.equal(healthy.goodCycles, 0);
+});
+
 // ------------------------------------------------------------
 // DiagnosticsSession
 // ------------------------------------------------------------
@@ -387,4 +454,133 @@ test("DiagnosticsSession: removeClient drops a card, stop() reports idle", () =>
 
   session.stop();
   assert.equal(session.snapshot().running, false);
+});
+
+test("DiagnosticsSession: addClient records Connected; re-adding the same id is a Reconnect that resets to gray", () => {
+  const session = new DiagnosticsSession();
+
+  session.addClient(1, 1000);
+  session.start();
+
+  let snap = session.snapshot();
+  assert.equal(snap.clients["1"].lastEvent.type, "connected");
+  assert.equal(snap.clients["1"].lastEvent.at, 1000);
+  assert.equal(snap.clients["1"].events.length, 1);
+
+  session.recordAck(1, 2);
+  session.recordAck(1, 3);
+  session.cycleAll();
+  session.cycleAll();
+  assert.equal(session.snapshot().clients["1"].status, STATUS.GREEN);
+
+  // Same id joins again (claim token restored the identity): the machine
+  // and metrics start over, a "reconnected" event is appended.
+  session.addClient(1, 5000);
+
+  snap = session.snapshot();
+  assert.equal(snap.clients["1"].status, STATUS.GRAY);
+  assert.equal(snap.clients["1"].metrics.samples, 0);
+  assert.equal(snap.clients["1"].lastEvent.type, "reconnected");
+  assert.deepEqual(
+    snap.clients["1"].events.map((event) => event.type),
+    ["connected", "reconnected"],
+  );
+});
+
+test("DiagnosticsSession: disconnectClient flips Red immediately and records the event", () => {
+  const session = new DiagnosticsSession();
+
+  session.addClient(1, 1000);
+  session.start();
+  session.recordAck(1, 2);
+  session.recordAck(1, 3);
+  session.cycleAll();
+  session.cycleAll();
+  assert.equal(session.snapshot().clients["1"].status, STATUS.GREEN);
+
+  session.disconnectClient(1, 4000);
+
+  const snap = session.snapshot();
+  assert.equal(snap.clients["1"].status, STATUS.RED);
+  assert.equal(snap.clients["1"].reason, "Disconnected");
+  assert.equal(snap.clients["1"].connected, false);
+  assert.equal(snap.clients["1"].lastEvent.type, "disconnected");
+  assert.equal(snap.clients["1"].lastEvent.at, 4000);
+
+  // A second disconnect call is a no-op (no duplicate events).
+  session.disconnectClient(1, 4500);
+  assert.equal(session.snapshot().clients["1"].events.length, 2);
+
+  // Reconnect restores the identity and returns through warm-up.
+  session.addClient(1, 5000);
+  session.cycleAll();
+  assert.equal(session.snapshot().clients["1"].status, STATUS.GRAY);
+});
+
+test("DiagnosticsSession: disconnected clients are excluded from Overall", () => {
+  const session = new DiagnosticsSession();
+
+  session.addClient(1);
+  session.addClient(2);
+  session.start();
+
+  session.recordAck(1, 2);
+  session.recordAck(1, 3);
+  session.cycleAll();
+  session.cycleAll();
+  assert.equal(session.snapshot().clients["1"].status, STATUS.GREEN);
+
+  session.disconnectClient(2, 1000);
+  assert.equal(session.snapshot().clients["2"].status, STATUS.RED);
+
+  assert.equal(
+    session.snapshot().overall,
+    STATUS.GREEN,
+    "the Red disconnected client must not drag Overall",
+  );
+});
+
+test("DiagnosticsSession: burst window stats feed the status decision", () => {
+  const session = new DiagnosticsSession({ warmupCycles: 1 });
+
+  session.addClient(1);
+  session.start();
+  session.setPhase("burst");
+  session.beginBurstWindow();
+
+  // Interleaved acks/timeouts: 5 acks + 5 timeouts → 50% burst loss with a
+  // consecutive-timeout streak of only 1, so the burst rule is the winner.
+  for (let i = 0; i < 5; i += 1) {
+    session.recordAck(1, 5);
+    session.recordTimeout(1);
+  }
+
+  session.endBurstWindow();
+  session.cycleAll();
+
+  const snap = session.snapshot();
+  assert.equal(snap.phase, "burst");
+  assert.equal(snap.clients["1"].metrics.burstTimeoutRate, 0.5);
+  assert.equal(snap.clients["1"].status, STATUS.RED);
+  assert.equal(snap.clients["1"].reason, "Burst timeout rate above 5%");
+});
+
+test("DiagnosticsSession: snapshot exposes loss rate, processing time and events", () => {
+  const session = new DiagnosticsSession();
+
+  session.addClient(1, 500);
+  session.start();
+  session.recordAck(1, 7, 1.25);
+  session.recordAck(1, 9, 2.5);
+  session.recordTimeout(1);
+
+  const snap = session.snapshot(900);
+  const metrics = snap.clients["1"].metrics;
+
+  assert.equal(metrics.acks, 2);
+  assert.equal(metrics.lossRate, 1 / 3);
+  assert.equal(metrics.lastProcessingMs, 2.5);
+  assert.equal(snap.clients["1"].lastEvent.type, "connected");
+  assert.equal(snap.clients["1"].lastEvent.agoMs, 400, "900 - 500");
+  assert.equal(snap.clients["1"].events.length, 1);
 });
