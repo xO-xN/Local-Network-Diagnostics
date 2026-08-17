@@ -39,6 +39,7 @@ jobs:
 
       - name: Assemble runnable project bundle
         run: |
+          mkdir -p "$BUNDLE"
           cp manifest.json package.json server.js "$BUNDLE/"
           cp -R lib public node_modules "$BUNDLE/"
           cp .github/bundle/README.md "$BUNDLE/README.md"
