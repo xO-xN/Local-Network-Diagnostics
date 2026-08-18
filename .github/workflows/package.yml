@@ -1,5 +1,9 @@
 name: Package release
 
+# The release artifact is a `.pnds` bundle (PNDS Project Bundle
+# Specification §2: one project root + a top-level pnds-bundle.json, zip
+# deflate) — the canonical distribution format for every PNDS project.
+#
 # PNDS App never runs an install step during a performance, so a released
 # score project has to ship its production dependencies already installed.
 #
@@ -85,10 +89,18 @@ jobs:
           grep -q '"audioMode":"none"' /tmp/health.json
           kill "$SERVER_PID"
 
-      - name: Create archive
+      - name: Create .pnds bundle
         run: |
-          cd dist && zip -q -r -X "../local-network-diagnostics-${VERSION}.zip" "Local Network Diagnostics"
-          cd .. && ls -lh "local-network-diagnostics-${VERSION}.zip"
+          cat > dist/pnds-bundle.json <<EOF
+          {
+            "formatVersion": 1,
+            "packedWith": "${VERSION}",
+            "packedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "sourcePlatform": "$(echo "${RUNNER_OS}-${RUNNER_ARCH}" | tr '[:upper:]' '[:lower:]')"
+          }
+          EOF
+          cd dist && zip -q -r -X "../local-network-diagnostics-${VERSION}.pnds" "Local Network Diagnostics" pnds-bundle.json
+          cd .. && ls -lh "local-network-diagnostics-${VERSION}.pnds"
 
       - name: Create draft release
         uses: softprops/action-gh-release@v2
@@ -96,16 +108,17 @@ jobs:
           tag_name: ${{ env.VERSION }}
           name: Local Network Diagnostics ${{ env.VERSION }}
           draft: true
-          files: local-network-diagnostics-*.zip
+          files: local-network-diagnostics-*.pnds
           body: |
             A PNDS score project for local network diagnostics.
 
             > [!IMPORTANT]
-            > Download **`local-network-diagnostics-${{ env.VERSION }}.zip`** from the Assets below.
+            > Download **`local-network-diagnostics-${{ env.VERSION }}.pnds`** from the Assets below.
             >
             > Do **not** download "Source code (zip)" or "Source code (tar.gz)",
             > and do not use the green "Code → Download ZIP" button. Those contain
             > the source only, without the installed Node.js dependencies.
             >
-            > The correct archive unzips into a folder named `Local Network Diagnostics`
-            > that contains a `node_modules` directory.
+            > The `.pnds` bundle installs directly into PNDS App: double-click it
+            > (or press ⌘O in the App). It unpacks the `Local Network Diagnostics` project with its
+            > `node_modules` directory ready to run.
