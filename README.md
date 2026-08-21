@@ -18,6 +18,7 @@ A PNDS score project that continuously diagnoses the local Wi-Fi network between
 - **Disconnect handling**: instant Red on disconnect, with an event log and reconnect recovery
 - **Details panel**: worst-case response (RTT p95), loss rate and client processing time
 - **Minimal performer page**: mobile clients just show "Connected, testing…" while answering probes automatically
+- **Theme following**: inside PNDS App (≥ v1.2.3) the monitor page follows the App color theme (all four themes) via the `pnds:theme` bridge; the performer page always keeps the project's own colors
 
 ### Getting Started
 
@@ -58,6 +59,7 @@ MIT — see [LICENSE](LICENSE).
 - **断线处理**：断开立即 Red，事件日志记录，重连后恢复
 - **详情面板**：最差响应（RTT p95）、丢包率、客户端处理耗时
 - **极简 performer 页**：手机客户端只显示 "Connected, testing…"，自动应答探针
+- **主题跟随**：在 PNDS App（≥ v1.2.3）中运行时，monitor 页通过 `pnds:theme` 消息实时跟随 App 主题（全部四套）；performer 页恒用工程自带配色
 
 ### 开始
 

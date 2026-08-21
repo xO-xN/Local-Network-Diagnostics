@@ -5,6 +5,10 @@
  * shadows, indigo accent. No p5 — plain DOM.
  */
 
+/* The project's own colors — the standalone look, shared by both pages.
+ * Inside the App, theme.js (monitor page only) rewrites the consumed
+ * variables from the App's pnds:theme pushes (spec §5.3 "Theme
+ * Following"); absent a theme, these values render unchanged. */
 :root {
   --bg: #f4f5fa;
   --card: #ffffff;

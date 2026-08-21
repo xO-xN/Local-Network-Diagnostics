@@ -27,6 +27,9 @@
 
     <script>
       if (window.location.port === String(window.PNDS.monitorPort)) {
+        // theme.js follows the App's theme pushes (spec §5.3) — monitor
+        // only; the performer branch below never loads it.
+        document.write('\x3Cscript src="theme.js"\x3E\x3C/script\x3E');
         document.write('\x3Cscript src="monitor.js"\x3E\x3C/script\x3E');
       } else {
         document.write('\x3Cscript src="performer.js"\x3E\x3C/script\x3E');

@@ -1,6 +1,6 @@
 {
   "name": "local-network-diagnostics",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "PNDS score project for local network diagnostics: measures Wi-Fi round-trip time, jitter and loss between the server and its clients in real time.",
   "main": "server.js",
@@ -9,7 +9,7 @@
   },
   "scripts": {
     "start": "node server.js",
-    "check": "node --check server.js && node --check lib/config.js && node --check lib/network.js && node --check lib/health.js && node --check lib/players.js && node --check lib/lifecycle.js && node --check lib/qr.js && node --check lib/diagnostics.js && node --check public/shared.js && node --check public/performer.js && node --check public/monitor.js",
+    "check": "node --check server.js && node --check lib/config.js && node --check lib/network.js && node --check lib/health.js && node --check lib/players.js && node --check lib/lifecycle.js && node --check lib/qr.js && node --check lib/diagnostics.js && node --check public/shared.js && node --check public/performer.js && node --check public/theme.js && node --check public/monitor.js",
     "test": "node --test"
   },
   "dependencies": {

@@ -49,6 +49,10 @@ npm start    # 不需要任何音频参数；恒为无音频模式
 - **Performer 页面**：手机端极简视图——自动加入（凭 localStorage 中的 claim token 恢复身份）、自动应答探针，只显示 **"Connected, testing…"**。
 - **状态文案单一来源**：`public/shared.js` 的 `statusCopy`（Gray/Green/Yellow/Red 四档），server 的 reason 与 monitor 的卡片/横幅都从它读取。
 
+## 主题跟随（App 集成）
+
+在 PNDS App（≥ v1.2.3）中运行时，monitor 页通过跨域 `postMessage` 接收 App 推送的主题（score project spec §5.3：`pnds:theme` 消息，含最终颜色值 palette），幂等地写入页面 CSS 变量——App 打开 monitor、切换主题、窗口重获焦点时都会重推，页面始终与 App 一致（Lavender / Sand / Stage / Brutal 全部四套）。加载时支持 `?theme=<name>` 查询参数作为首帧初值（App 目前不携带该参数，缺席时用工程自带配色，行为与从前完全一致）。状态色（绿/黄/灰）没有 App 对应物，按调色板明暗推导两档，四套主题下均保持 ≥4.5:1 可读。performer 页不参与、恒用工程自带配色。实现见 `public/theme.js`。
+
 ## 目录结构
 
 ```
@@ -65,6 +69,7 @@ lib/                      可复用核心，任何 PNDS 工程通用（template 
 public/                   浏览器端（performer + monitor 双角色单页）
   index.html              双角色入口（按端口加载不同脚本；无 p5）
   shared.js               浏览器与 server 共用的常量：事件名 / 状态文案 / 诊断词汇表（单一事实来源，见下文）
+  theme.js                主题跟随（仅 monitor 分支加载）：监听 App 的 pnds:theme 消息，写入 CSS 变量
   performer.js            手机端：自动加入 + 应答探针，显示"已连接，正在测速"（DOM）
   monitor.js              监视端：居中卡片控制台 + 详情弹窗（DOM）
   style.css               设计语言（浅色主题，参照 Multichannel Signal Generator）
@@ -78,6 +83,7 @@ docs/                     本指南与交接文档
 |---|---|
 | 换作品名 / 端口 | `manifest.json`（改端口只需改这里） |
 | 改监视端 | `public/monitor.js`（DOM）+ `public/style.css` |
+| 改主题跟随 | `public/theme.js`（palette → CSS 变量映射、状态色推导、`?theme=` 初值） |
 | 改 performer 端 | `public/performer.js`（DOM） |
 | 改诊断阈值 / 规则 | `lib/diagnostics.js`（状态机、阈值、窗口） |
 | 改状态文案（含 Red 文案） | `public/shared.js` 的 `statusCopy`（唯一一处） |

@@ -8,6 +8,7 @@
 - **例外（本工程）**：`lib/diagnostics.js` 承载本工程的作品语义（诊断指标 + 状态机 + 事件日志）——本工程的作品本身就是网络诊断，且该模块是纯逻辑（无 timer / socket / IO，可单测），见决策记录。
 - `server.js` 只做编排（协议挂载、广播、生命周期），不含业务算法。
 - `public/shared.js` 是浏览器与 server 的**单一事实来源**（事件名、客户端上限、诊断状态文案 `statusCopy`、诊断词汇表 `diagPhases`/`diagEvents`），必须保持 UMD 形态（浏览器全局 `window.PNDS` + Node `module.exports`）。
+- `public/theme.js` 是主题跟随模块（UMD，同 shared.js 形态）：Node 端导出纯函数供测试；浏览器端仅 monitor 分支加载并自行接线——`?theme=` 首帧初值 + `pnds:theme` 消息监听，把 palette 写入 CSS 变量。performer 分支永不加载。
 - **本工程无音频**：没有 `audio/`、`supercollider/`、`lib/audio-engine.js`、`lib/osc-transport.js`；server 恒为 `none` 模式。
 
 ## 端口约定
@@ -39,11 +40,14 @@
 - **30 msg/s 下连续超时规则先于 burst 超时率规则触发**（spec 优先级 2 > 3）：一次丢 3+ 个连续 probe 即 Red；burst 规则覆盖"散布丢包"场景。E2E 用孤立丢包（每 5 丢 1）隔离 burst 规则。
 - **丢包率 = timeouts / (acks + timeouts)**（生命周期计数，滑动窗口裁剪不影响），仅详情面板。
 - QR 码由 `lib/qr.js` 生成（`qrcode` npm 包，`GET /qr` 挂在 monitor server），monitor 页面底部展示。
+- **主题跟随走 score project spec §5.3（App issue #44/#45）**：monitor 页消费 App 的 `pnds:theme` postMessage（best-effort、最新值覆盖，App 在 iframe load / 切主题 / 焦点重获时重推），幂等写入 CSS 变量；未知或畸形消息静默忽略、页面不报错。映射在 `public/theme.js` 的 `SURFACE_VARIABLES`（bg→`--bg`、card→`--card`、text→`--text`、text-secondary→`--muted`、accent→`--accent`、danger→`--danger`/`--red`、pill→`--track`）；palette 其余键（sidebar-bg、`*-hover`/`*-foreground`、warning）页面无对应面，不消费。
+- **状态色（绿/黄/灰）按明暗推导，不直接映射 warning**：App 的 warning/danger 是"填充色 + 配套 label 色"的组合，而本页状态色直接作卡片上的文字（App 的 warning 填充色在浅色卡上作文字不达 4.5:1）。按 `palette.card` 亮度分档（<0.2 为暗），亮/暗两套状态色在四主题卡面上均 ≥4.5:1（`test/theme.test.js` 断言）。Red 是例外——App 保证 danger 作文字 ≥4.5:1，直接映射。
+- **`?theme=<name>` 为前瞻支持**：App 目前不携带该参数；四套主题初值复制自 App 的 `theme-variables.css`（消息到达后原样覆盖，故复制漂移无害但应随 App 主题演进而同步）。参数缺席或未知时用工程自带默认配色；`style.css` 的 `:root` 保持工程原值不动——performer 页共享该样式，"行为不变"优先于"首条消息零闪变"。
 - 本工程**不预装 node_modules**（`.gitignore` 排除）；首次使用按 creator-guide 执行 `npm install`。发布包必须预装。
 
 ## 验证命令
 
 ```sh
 npm run check   # 全部 JS 语法检查
-npm test        # node --test（config / players / diagnostics / E2E）
+npm test        # node --test（config / players / diagnostics / theme / E2E）
 ```
