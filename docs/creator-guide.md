@@ -47,11 +47,20 @@ npm start    # 不需要任何音频参数；恒为无音频模式
 - **断开与事件日志**：客户端断开时卡片**保留并立即转 Red**；每个客户端记录事件（Connected / Disconnected / Reconnected，带时间戳，最多 20 条）；重连凭 claim token 恢复原 id，重新经过 Gray warming up 回到 Green。卡片与详情弹窗展示最近事件（如 "Disconnected 5s ago"）。
 - **Monitor 展示**（参照 Multichannel Signal Generator 的居中浅色卡片设计，纯 DOM，无 p5）：居中 Overall 横幅 + 每客户端一张卡片（状态色、状态文案、原因、Typical Response = RTT p50、Worst-case Response = RTT p95、Stability (Timing Variation) = jitter、最近事件）。**点击卡片打开详情弹窗**：p95、丢包率、处理耗时、完整事件日志（这些指标不参与状态判定）。Red 卡片文案固定为 **"Not suitable for performance"**。页面底部有 performer 页面 QR 码。无 Start/Stop 按钮（打开即自动测试），不显示 Burst/Calm 阶段。
 - **Performer 页面**：手机端极简视图——自动加入（凭 localStorage 中的 claim token 恢复身份）、自动应答探针，只显示 **"Connected, testing…"**。
-- **状态文案单一来源**：`public/shared.js` 的 `statusCopy`（Gray/Green/Yellow/Red 四档），server 的 reason 与 monitor 的卡片/横幅都从它读取。
+- **文案单一来源（双语）**：`public/shared.js` 的 `copy` 表（`en` / `zh-CN` 两套，含状态文案、原因文案、事件文案与 monitor 界面文案）。server 的 state 只携带语言中立的 reason key（`lib/diagnostics.js`），monitor 页按当前语言（`public/locale.js`）查表渲染；Red 卡片文案在两套语言里都固定显式（"Not suitable for performance" / "不适合现场演出"）。
 
 ## 主题跟随（App 集成）
 
 在 PNDS App（≥ v1.2.3）中运行时，monitor 页通过跨域 `postMessage` 接收 App 推送的主题（score project spec §5.3：`pnds:theme` 消息，含最终颜色值 palette），幂等地写入页面 CSS 变量——App 打开 monitor、切换主题、窗口重获焦点时都会重推，页面始终与 App 一致（Lavender / Sand / Stage / Brutal 全部四套）。加载时支持 `?theme=<name>` 查询参数作为首帧初值（App 目前不携带该参数，缺席时用工程自带配色，行为与从前完全一致）。状态色（绿/黄/灰）没有 App 对应物，按调色板明暗推导两档，四套主题下均保持 ≥4.5:1 可读。performer 页不参与、恒用工程自带配色。实现见 `public/theme.js`。
+
+## 语言跟随（App 集成）
+
+在 PNDS App（≥ v1.3.0）中运行时，monitor 页同样通过跨域 `postMessage` 接收 App 推送的语言（网络参考文档 "Locale Following" 一节：`pnds:locale` v1 消息，负载为解析后的语言代码 `en` / `zh-CN`），页面按当前语言从 `shared.js` 的双语 `copy` 表渲染全部界面文案——App 打开 monitor、切换语言、窗口重获焦点时都会重推，monitor 即时整页重渲染。语义与主题桥一致：单向、尽力而为、最新值胜、幂等；未实现或不认识的消息静默忽略、页面不报错。加载时支持 `?lang=<code>` 查询参数作为首帧初值（App 在 monitor URL 上携带；缺席或未知时默认英文，行为与从前完全一致）。
+
+- monitor 全部文案（横幅、卡片指标、详情弹窗、事件日志、时间表述、二维码说明）双语；`<html lang>` 随语言同步。
+- **server 无语言**：state 广播里的 `reason` 是语言中立 key（如 `consecutiveTimeouts`），由 monitor 查当前语言的表得到展示文案。
+- performer 页不参与（它开在演奏者手机浏览器里，不在 App 内，没有推送通道），恒为英文。
+- 实现见 `public/locale.js`（桥与当前语言状态）；文案表见 `public/shared.js` 的 `copy`。
 
 ## 目录结构
 
@@ -68,8 +77,9 @@ lib/                      可复用核心，任何 PNDS 工程通用（template 
   diagnostics.js          网络诊断：指标 + 状态机 + 事件日志（纯逻辑，见"网络诊断功能"）
 public/                   浏览器端（performer + monitor 双角色单页）
   index.html              双角色入口（按端口加载不同脚本；无 p5）
-  shared.js               浏览器与 server 共用的常量：事件名 / 状态文案 / 诊断词汇表（单一事实来源，见下文）
+  shared.js               浏览器与 server 共用的常量：事件名 / 诊断词汇表 / 双语文案表 copy（单一事实来源，见下文）
   theme.js                主题跟随（仅 monitor 分支加载）：监听 App 的 pnds:theme 消息，写入 CSS 变量
+  locale.js               语言跟随（仅 monitor 分支加载）：监听 App 的 pnds:locale 消息，维护当前语言并通知重渲染
   performer.js            手机端：自动加入 + 应答探针，显示"已连接，正在测速"（DOM）
   monitor.js              监视端：居中卡片控制台 + 详情弹窗（DOM）
   style.css               设计语言（浅色主题，参照 Multichannel Signal Generator）
@@ -84,9 +94,10 @@ docs/                     本指南与交接文档
 | 换作品名 / 端口 | `manifest.json`（改端口只需改这里） |
 | 改监视端 | `public/monitor.js`（DOM）+ `public/style.css` |
 | 改主题跟随 | `public/theme.js`（palette → CSS 变量映射、状态色推导、`?theme=` 初值） |
+| 改语言跟随 / 加新语言 | `public/locale.js`（支持的语言代码）+ `public/shared.js` 的 `copy` 表（两套语言同形状，`test/locale.test.js` 会拦） |
 | 改 performer 端 | `public/performer.js`（DOM） |
 | 改诊断阈值 / 规则 | `lib/diagnostics.js`（状态机、阈值、窗口） |
-| 改状态文案（含 Red 文案） | `public/shared.js` 的 `statusCopy`（唯一一处） |
+| 改界面文案（含 Red 文案） | `public/shared.js` 的 `copy` 双语表（en / zh-CN 各一处，含 Red 文案；server 端 reason 只用 key） |
 | 加 Socket.IO 事件 | `public/shared.js`（事件名）+ `server.js`（处理） |
 | 改客户端上限 | `public/shared.js` 的 `maxClients` |
 
@@ -95,7 +106,7 @@ docs/                     本指南与交接文档
 `public/shared.js` 是浏览器页面与 Node server **共用同一份常量**的模块：
 
 - 它用 UMD 包装：浏览器里挂到 `window.PNDS`（页面脚本里 `const P = window.PNDS` 取别名），Node 里走 `module.exports`（server 端 `require`）。
-- **Socket.IO 事件名**（`events`）、**客户端上限**（`maxClients`）、**localStorage token 键名**（`tokenKey`）、**诊断状态文案**（`statusCopy`）、**诊断词汇表**（`diagPhases` / `diagEvents`）都在这里定义。
+- **Socket.IO 事件名**（`events`）、**客户端上限**（`maxClients`）、**localStorage token 键名**（`tokenKey`）、**双语文案表**（`copy`：状态 / 原因 / 事件 / monitor 界面文案，en 与 zh-CN 同形状）、**诊断词汇表**（`diagPhases` / `diagEvents`）都在这里定义。
 - **端口**的单一来源是 `manifest.json`（App 工程契约）。`shared.js` 在 Node 端自动从 manifest 读取，浏览器端由 server 动态注入——创作者只需改 manifest.json。
 - 本工程的 `tokenKey` 与工程 id 一致（`local-network-diagnostics-token`）。若由此 fork 出新的工程，记得同步修改这个键，避免不同工程共用同一个 localStorage 键。
 

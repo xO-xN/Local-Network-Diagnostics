@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="zh-CN">
+<html lang="en">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -27,9 +27,11 @@
 
     <script>
       if (window.location.port === String(window.PNDS.monitorPort)) {
-        // theme.js follows the App's theme pushes (spec §5.3) — monitor
-        // only; the performer branch below never loads it.
+        // theme.js / locale.js follow the App's theme and language pushes
+        // (network reference "Theme Following" / "Locale Following") —
+        // monitor only; the performer branch below never loads them.
         document.write('\x3Cscript src="theme.js"\x3E\x3C/script\x3E');
+        document.write('\x3Cscript src="locale.js"\x3E\x3C/script\x3E');
         document.write('\x3Cscript src="monitor.js"\x3E\x3C/script\x3E');
       } else {
         document.write('\x3Cscript src="performer.js"\x3E\x3C/script\x3E');

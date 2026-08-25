@@ -6,7 +6,7 @@
 //   Ports   → manifest.json (browser gets them via __config.js injected by the server)
 //   Events  → here (events)
 //   Token   → here (tokenKey)
-//   Copy/vocabulary → here (statusCopy, diagPhases, diagEvents)
+//   Copy/vocabulary → here (copy, diagPhases, diagEvents)
 
 (function (root, factory) {
   if (typeof module !== "undefined" && module.exports) {
@@ -32,14 +32,107 @@
     // Client roster cap (id space, PlayerRegistry).
     maxClients: 16,
 
-    // Diagnostics status copy, shared by the server (reasons in
-    // lib/diagnostics.js) and the monitor page (cards + Overall banner).
-    // Single source of truth — the Red copy must stay explicit (spec).
-    statusCopy: {
-      gray: "Warming up…",
-      green: "Suitable for performance",
-      yellow: "Caution — borderline network",
-      red: "Not suitable for performance",
+    // UI copy, per locale (bilingual since v0.3.0). Keys are
+    // language-neutral; the monitor page renders through the table of
+    // the current locale (public/locale.js follows the App language,
+    // default "en"), while the server's state carries only the reason
+    // keys (lib/diagnostics.js). "en" doubles as the fallback table and
+    // is the page's historical copy — a session with no locale traffic
+    // renders exactly as before. The Red status copy must stay explicit
+    // (spec). test/locale.test.js asserts both tables share one shape.
+    copy: {
+      en: {
+        status: {
+          gray: "Warming up…",
+          green: "Suitable for performance",
+          yellow: "Caution — borderline network",
+          red: "Not suitable for performance",
+        },
+        reasons: {
+          warmup: "Warming up…",
+          disconnected: "Disconnected",
+          consecutiveTimeouts: "3 consecutive probe timeouts",
+          burstTimeoutRate: "Burst timeout rate above 5%",
+          jitter: "High timing variation",
+          rtt: "Slow responses",
+          timeout: "Recent probe timeouts",
+          green: "Suitable for performance",
+          outsideSafe: "Outside safe thresholds",
+        },
+        events: {
+          connected: "Connected",
+          disconnected: "Disconnected",
+          reconnected: "Reconnected",
+        },
+        monitor: {
+          sub: "Monitor — network test console",
+          overall: "Overall",
+          overallPrefix: "Overall: ",
+          notRunning: "Test not running",
+          noPerformers: "No performers connected",
+          client: "Client ",
+          statusWord: { gray: "Gray", green: "Green", yellow: "Yellow", red: "Red" },
+          typical: "Typical Response",
+          worst: "Worst-case Response",
+          stability: "Stability (Timing Variation)",
+          loss: "Loss Rate",
+          processing: "Processing Time",
+          log: "Event Log",
+          noEvents: "No events yet",
+          empty: "No performers connected yet — scan the QR code below",
+          hint: "Click a card for details",
+          scan: "Scan to join as performer",
+          qrAlt: "QR code for the performer page",
+          close: "Close details",
+        },
+        ago: { just: "just now", seconds: "s ago", minutes: "m ago" },
+      },
+      "zh-CN": {
+        status: {
+          gray: "预热中…",
+          green: "适合现场演出",
+          yellow: "注意 — 网络处于临界状态",
+          red: "不适合现场演出",
+        },
+        reasons: {
+          warmup: "预热中…",
+          disconnected: "已断开",
+          consecutiveTimeouts: "连续 3 次探针超时",
+          burstTimeoutRate: "突发期超时率超过 5%",
+          jitter: "时间抖动过大",
+          rtt: "响应过慢",
+          timeout: "近期探针超时",
+          green: "适合现场演出",
+          outsideSafe: "超出安全阈值",
+        },
+        events: {
+          connected: "已连接",
+          disconnected: "已断开",
+          reconnected: "已重连",
+        },
+        monitor: {
+          sub: "监视端 — 网络测试控制台",
+          overall: "总体",
+          overallPrefix: "总体：",
+          notRunning: "测试未运行",
+          noPerformers: "无演奏者连接",
+          client: "客户端 ",
+          statusWord: { gray: "灰", green: "绿", yellow: "黄", red: "红" },
+          typical: "典型响应",
+          worst: "最差响应",
+          stability: "稳定性（时间抖动）",
+          loss: "丢包率",
+          processing: "处理耗时",
+          log: "事件日志",
+          noEvents: "暂无事件",
+          empty: "还没有演奏者连接 — 扫描下方二维码加入",
+          hint: "点击卡片查看详情",
+          scan: "扫码加入为演奏者",
+          qrAlt: "演奏者页面二维码",
+          close: "关闭详情",
+        },
+        ago: { just: "刚刚", seconds: " 秒前", minutes: " 分钟前" },
+      },
     },
 
     // Diagnostics protocol vocabulary, shared by lib/diagnostics.js

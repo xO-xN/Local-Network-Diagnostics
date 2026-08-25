@@ -6,42 +6,57 @@
 // processing time, event log). Opening the page starts the test
 // automatically. Diagnostics data arrives inside the regular "state"
 // broadcast as `diag` — see lib/diagnostics.js on the server.
+//
+// All copy renders through the shared bilingual tables (shared.js `copy`),
+// picked by the current locale (locale.js follows the App language, so the
+// page re-renders live on every language switch; default English).
 
 const P = window.PNDS;
+const L = window.PNDS_LOCALE;
 
 const app = document.getElementById("app");
 
 app.innerHTML =
   "<header>" +
   "<h1>Local Network Diagnostics</h1>" +
-  '<span class="sub">Monitor — network test console</span>' +
+  '<span class="sub" id="sub-label"></span>' +
   "</header>" +
   '<div class="overall st-idle" id="overall">' +
   '<span class="dot"></span>' +
-  '<span class="overall-label">Overall</span>' +
-  '<span class="overall-copy" id="overall-copy">Test not running</span>' +
+  '<span class="overall-label" id="overall-label"></span>' +
+  '<span class="overall-copy" id="overall-copy"></span>' +
   "</div>" +
   '<div id="cards"></div>' +
   '<div class="hint" id="empty"></div>' +
-  '<div class="hint" id="hint">Click a card for details</div>' +
+  '<div class="hint" id="hint"></div>' +
   '<div class="qr-row">' +
-  '<img src="/qr" alt="QR code for the performer page" />' +
-  '<span class="sub">Scan to join as performer</span>' +
+  '<img src="/qr" id="qr-img" alt="" />' +
+  '<span class="sub" id="scan-label"></span>' +
   "</div>" +
   '<div class="modal hidden" id="modal">' +
   '<div class="modal-card" id="modal-card"></div>' +
   "</div>";
 
+const subLabelEl = document.getElementById("sub-label");
 const overallEl = document.getElementById("overall");
+const overallLabelEl = document.getElementById("overall-label");
 const overallCopyEl = document.getElementById("overall-copy");
 const cardsEl = document.getElementById("cards");
 const emptyEl = document.getElementById("empty");
 const hintEl = document.getElementById("hint");
+const qrImgEl = document.getElementById("qr-img");
+const scanLabelEl = document.getElementById("scan-label");
 const modalEl = document.getElementById("modal");
 const modalCardEl = document.getElementById("modal-card");
 
 let diag = null;
 let selectedId = null;
+
+// The copy table of the current locale (English fallback — the table
+// the page rendered before locale following existed).
+function T() {
+  return P.copy[L.current()] || P.copy.en;
+}
 
 const socket = io(
   "http://" + location.hostname + ":" + P.performerPort,
@@ -58,6 +73,11 @@ socket.on(P.events.state, (data) => {
   diag = data.diag || null;
   render();
 });
+
+// The App language switch re-renders the whole console through the new
+// locale's copy table (latest value wins; same value re-pushes change
+// nothing).
+L.subscribe(render);
 
 modalEl.addEventListener("click", (event) => {
   if (event.target === modalEl) {
@@ -79,13 +99,30 @@ function statusClass(status) {
   return "st-" + (status || "idle");
 }
 
+function statusWord(status) {
+  return (T().monitor.statusWord[status] || status || "").toUpperCase();
+}
+
+function reasonText(reason) {
+  return reason ? T().reasons[reason] || "" : "";
+}
+
 function render() {
+  const t = T();
+
+  subLabelEl.textContent = t.monitor.sub;
+  overallLabelEl.textContent = t.monitor.overall;
+  hintEl.textContent = t.monitor.hint;
+  qrImgEl.setAttribute("alt", t.monitor.qrAlt);
+  scanLabelEl.textContent = t.monitor.scan;
+
   renderOverall();
   renderCards();
   renderDetails();
 }
 
 function renderOverall() {
+  const t = T();
   const running = Boolean(diag && diag.running);
   const status = running ? (diag && diag.overall) || "gray" : "idle";
 
@@ -101,11 +138,11 @@ function renderOverall() {
   let copy;
 
   if (!running) {
-    copy = "Test not running";
+    copy = t.monitor.notRunning;
   } else if (clientIds().length === 0) {
-    copy = "No performers connected";
+    copy = t.monitor.noPerformers;
   } else {
-    copy = "Overall: " + (P.statusCopy[status] || "");
+    copy = t.monitor.overallPrefix + (t.status[status] || "");
   }
 
   overallCopyEl.textContent = copy;
@@ -133,11 +170,12 @@ function el(tag, className, text) {
 }
 
 function renderCards() {
+  const t = T();
+
   cardsEl.textContent = "";
   const ids = clientIds();
 
-  emptyEl.textContent =
-    ids.length === 0 ? "No performers connected yet — scan the QR code below" : "";
+  emptyEl.textContent = ids.length === 0 ? t.monitor.empty : "";
 
   for (const id of ids) {
     const info = diag.clients[id];
@@ -149,29 +187,25 @@ function renderCards() {
     card.addEventListener("click", () => openDetails(id));
 
     const head = el("div", "head");
-    head.append(el("span", "dot on"), el("span", null, "Client " + id));
+    head.append(el("span", "dot on"), el("span", null, t.monitor.client + id));
     card.append(head);
 
     card.append(
-      el("div", "status-word", status.toUpperCase()),
-      el("div", "copy", P.statusCopy[status] || ""),
+      el("div", "status-word", statusWord(status)),
+      el("div", "copy", t.status[status] || ""),
     );
 
-    if (info && info.reason) {
-      card.append(el("div", "reason", info.reason));
-    } else {
-      card.append(el("div", "reason", ""));
-    }
+    card.append(el("div", "reason", reasonText(info && info.reason)));
 
-    card.append(metricRow("Typical Response", formatMs(metrics && metrics.rttP50)));
-    card.append(metricRow("Worst-case Response", formatMs(metrics && metrics.rttP95)));
+    card.append(metricRow(t.monitor.typical, formatMs(metrics && metrics.rttP50)));
+    card.append(metricRow(t.monitor.worst, formatMs(metrics && metrics.rttP95)));
     card.append(
-      metricRow("Stability (Timing Variation)", formatMs(metrics && metrics.jitterP95)),
+      metricRow(t.monitor.stability, formatMs(metrics && metrics.jitterP95)),
     );
 
     const eventText = lastEvent
       ? eventLabel(lastEvent.type) + " · " + agoText(lastEvent.agoMs)
-      : "No events yet";
+      : t.monitor.noEvents;
     const eventEl = el("div", "event", eventText);
 
     if (lastEvent && lastEvent.type === P.diagEvents.disconnected) {
@@ -212,6 +246,7 @@ function renderDetails() {
     return;
   }
 
+  const t = T();
   const info = diag.clients[selectedId];
   const status = info.status;
   const metrics = info.metrics || {};
@@ -230,42 +265,42 @@ function renderDetails() {
   const title = el("div", "title");
   title.append(
     el("span", "dot on"),
-    el("span", null, "Client " + selectedId),
-    el("span", "status-word", status.toUpperCase()),
+    el("span", null, t.monitor.client + selectedId),
+    el("span", "status-word", statusWord(status)),
   );
 
   const close = el("button", "close", "×");
-  close.setAttribute("aria-label", "Close details");
+  close.setAttribute("aria-label", t.monitor.close);
   close.addEventListener("click", closeDetails);
 
   head.append(title, close);
   modalCardEl.append(head);
 
   modalCardEl.append(
-    el("div", "status-line", P.statusCopy[status] || ""),
+    el("div", "status-line", t.status[status] || ""),
   );
 
   if (info.reason) {
-    modalCardEl.append(el("div", "reason", info.reason));
+    modalCardEl.append(el("div", "reason", reasonText(info.reason)));
   }
 
   const rows = el("div", "rows");
   rows.append(
-    metricRow("Typical Response", formatMs(metrics.rttP50)),
-    metricRow("Worst-case Response", formatMs(metrics.rttP95)),
-    metricRow("Stability (Timing Variation)", formatMs(metrics.jitterP95)),
-    metricRow("Loss Rate", formatPct(metrics.lossRate)),
-    metricRow("Processing Time", formatMs(metrics.lastProcessingMs, 1)),
+    metricRow(t.monitor.typical, formatMs(metrics.rttP50)),
+    metricRow(t.monitor.worst, formatMs(metrics.rttP95)),
+    metricRow(t.monitor.stability, formatMs(metrics.jitterP95)),
+    metricRow(t.monitor.loss, formatPct(metrics.lossRate)),
+    metricRow(t.monitor.processing, formatMs(metrics.lastProcessingMs, 1)),
   );
   modalCardEl.append(rows);
 
-  modalCardEl.append(el("h3", null, "Event Log"));
+  modalCardEl.append(el("h3", null, t.monitor.log));
 
   const log = el("div", "log");
   const events = info.events || [];
 
   if (events.length === 0) {
-    log.append(el("div", "entry", "No events yet"));
+    log.append(el("div", "entry", t.monitor.noEvents));
   } else {
     for (const event of events.slice(-8).reverse()) {
       const entry = el("div", "entry");
@@ -291,23 +326,25 @@ function formatPct(value) {
 }
 
 function eventLabel(type) {
-  return type.charAt(0).toUpperCase() + type.slice(1);
+  return T().events[type] || type.charAt(0).toUpperCase() + type.slice(1);
 }
 
 function agoText(agoMs) {
+  const t = T();
+
   if (typeof agoMs !== "number") {
     return "";
   }
 
   if (agoMs < 1000) {
-    return "just now";
+    return t.ago.just;
   }
 
   if (agoMs < 60000) {
-    return Math.round(agoMs / 1000) + "s ago";
+    return Math.round(agoMs / 1000) + t.ago.seconds;
   }
 
-  return Math.round(agoMs / 60000) + "m ago";
+  return Math.round(agoMs / 60000) + t.ago.minutes;
 }
 
 render();

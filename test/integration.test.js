@@ -674,7 +674,7 @@ test("diagnostics: burst timeout rate above 5% drives Red (issue #5)", async (t)
   );
   assert.equal(
     red.diag.clients["1"].reason,
-    "Burst timeout rate above 5%",
+    "burstTimeoutRate",
   );
 
   monitor.emit(EVENTS.diagStop);
@@ -739,7 +739,7 @@ test("diagnostics: disconnect → Red card, reconnect via token → warming up �
     15000,
   );
 
-  assert.equal(red.diag.clients["1"].reason, "Disconnected");
+  assert.equal(red.diag.clients["1"].reason, "disconnected");
   assert.equal(red.diag.clients["1"].lastEvent.type, "disconnected");
   assert.ok(
     red.diag.clients["1"].lastEvent.agoMs < 5000,

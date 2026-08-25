@@ -7,8 +7,9 @@
 - `lib/` 是可复用核心，**不得包含作品特定逻辑**。改动它意味着所有继承该模板的工程都受影响。
 - **例外（本工程）**：`lib/diagnostics.js` 承载本工程的作品语义（诊断指标 + 状态机 + 事件日志）——本工程的作品本身就是网络诊断，且该模块是纯逻辑（无 timer / socket / IO，可单测），见决策记录。
 - `server.js` 只做编排（协议挂载、广播、生命周期），不含业务算法。
-- `public/shared.js` 是浏览器与 server 的**单一事实来源**（事件名、客户端上限、诊断状态文案 `statusCopy`、诊断词汇表 `diagPhases`/`diagEvents`），必须保持 UMD 形态（浏览器全局 `window.PNDS` + Node `module.exports`）。
+- `public/shared.js` 是浏览器与 server 的**单一事实来源**（事件名、客户端上限、双语文案表 `copy`、诊断词汇表 `diagPhases`/`diagEvents`），必须保持 UMD 形态（浏览器全局 `window.PNDS` + Node `module.exports`）。
 - `public/theme.js` 是主题跟随模块（UMD，同 shared.js 形态）：Node 端导出纯函数供测试；浏览器端仅 monitor 分支加载并自行接线——`?theme=` 首帧初值 + `pnds:theme` 消息监听，把 palette 写入 CSS 变量。performer 分支永不加载。
+- `public/locale.js` 是语言跟随模块（UMD，照 theme.js 的模式）：Node 端导出纯函数供测试；浏览器端仅 monitor 分支加载并自行接线——`?lang=` 首帧初值 + `pnds:locale` v1 消息监听，维护当前语言（默认 `en`）、同步 `<html lang>` 并通知订阅者（monitor.js 订阅后整页重渲染）。performer 分支永不加载。
 - **本工程无音频**：没有 `audio/`、`supercollider/`、`lib/audio-engine.js`、`lib/osc-transport.js`；server 恒为 `none` 模式。
 
 ## 端口约定
@@ -36,7 +37,10 @@
 - **burst 超时率按"完成的 burst 窗口"冻结**（`endBurstWindow`）：calm 期间沿用上一窗口的值；空窗口记 0。冻结延迟 `BURST_TIMEOUT_MS`（200 ms）执行，把窗口尾部（最后 200 ms 内发出的探针，其超时在 phase 切换后才触发）计入本窗口而不是下一个。这样坏 burst 的 Red 会持续到 hysteresis 恢复，不会在 calm 中被稀释。
 - **Overall 只统计在线客户端（#7）**：spec 原文"取所有在线客户端中最差的状态"，断开（离线）客户端不参与 Overall，但其红色卡片保留可见；无在线客户端时 Overall = Gray。
 - **Monitor 卡片网格由诊断名册（`diag.clients`）驱动，而非音频快照**：断开时卡片继续显示 "Disconnected 5s ago" 并可打开详情（#6 验收）。state 广播只含 `diag`（无音频快照）。
-- **phase / 事件类型词汇表进 shared.js**（`diagPhases` / `diagEvents`）：server（lib）产生、monitor 消费的字符串协议，与 `statusCopy` 同一 SSOT 文化；改词汇只需改 shared.js 一处。
+- **phase / 事件类型词汇表进 shared.js**（`diagPhases` / `diagEvents`）：server（lib）产生、monitor 消费的字符串协议，与文案表同一 SSOT 文化；改词汇只需改 shared.js 一处。
+- **语言跟随走网络参考文档 "Locale Following"（App issue #48/#9）**：monitor 页消费 App 的 `pnds:locale` v1 postMessage（best-effort、最新值胜，App 在 iframe load / 切语言 / 焦点重获时重推），幂等更新当前语言并整页重渲染；未知或畸形消息静默忽略、页面不报错。支持的语言代码精确匹配 `en` / `zh-CN`（不归一化大小写，App 发送规范 BCP 47）；`?lang=` 首帧参数同规则，缺席/未知默认 `en`。与主题桥同一套推送机制，但**独立消息**，互不改动对方的契约。
+- **server 无语言，reason 走语言中立 key**：`lib/diagnostics.js` 的 `REASON` 值从英文文案改为 key（`warmup` / `disconnected` / `consecutiveTimeouts` / `burstTimeoutRate` / `jitter` / `rtt` / `timeout` / `green` / `outsideSafe`），state 广播不再携带任何人类语言；monitor 按当前语言查 `shared.js` 的 `copy` 表渲染。`copy.en` 兼作回退表与默认语言（历史英文 UI，无桥流量时页面与从前完全一致）。两套表形状由 `test/locale.test.js` 强制一致。
+- **performer 页不参与语言跟随**：它开在演奏者手机浏览器里（QR 码直达），不在 App 内、没有 postMessage 通道，恒为英文；`<html lang>` 静态值因此修正为 `en`（monitor 侧由 locale.js 动态同步）。
 - **30 msg/s 下连续超时规则先于 burst 超时率规则触发**（spec 优先级 2 > 3）：一次丢 3+ 个连续 probe 即 Red；burst 规则覆盖"散布丢包"场景。E2E 用孤立丢包（每 5 丢 1）隔离 burst 规则。
 - **丢包率 = timeouts / (acks + timeouts)**（生命周期计数，滑动窗口裁剪不影响），仅详情面板。
 - QR 码由 `lib/qr.js` 生成（`qrcode` npm 包，`GET /qr` 挂在 monitor server），monitor 页面底部展示。
@@ -49,5 +53,5 @@
 
 ```sh
 npm run check   # 全部 JS 语法检查
-npm test        # node --test（config / players / diagnostics / theme / E2E）
+npm test        # node --test（config / players / diagnostics / theme / locale / E2E）
 ```

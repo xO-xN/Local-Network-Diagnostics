@@ -19,6 +19,7 @@ A PNDS score project that continuously diagnoses the local Wi-Fi network between
 - **Details panel**: worst-case response (RTT p95), loss rate and client processing time
 - **Minimal performer page**: mobile clients just show "Connected, testing…" while answering probes automatically
 - **Theme following**: inside PNDS App (≥ v1.2.3) the monitor page follows the App color theme (all four themes) via the `pnds:theme` bridge; the performer page always keeps the project's own colors
+- **Locale following**: inside PNDS App (≥ v1.3.0) the monitor page follows the App language (English / 简体中文) via the `pnds:locale` bridge and the `?lang=` first-frame parameter — every label, status copy and detail renders live in the App's language; the performer page always stays English
 
 ### Getting Started
 
@@ -60,6 +61,7 @@ MIT — see [LICENSE](LICENSE).
 - **详情面板**：最差响应（RTT p95）、丢包率、客户端处理耗时
 - **极简 performer 页**：手机客户端只显示 "Connected, testing…"，自动应答探针
 - **主题跟随**：在 PNDS App（≥ v1.2.3）中运行时，monitor 页通过 `pnds:theme` 消息实时跟随 App 主题（全部四套）；performer 页恒用工程自带配色
+- **语言跟随**：在 PNDS App（≥ v1.3.0）中运行时，monitor 页通过 `pnds:locale` 消息与 `?lang=` 首帧参数实时跟随 App 语言（English / 简体中文）——所有标签、状态文案与详情弹窗随 App 语言即时切换；performer 页恒为英文
 
 ### 开始
 
