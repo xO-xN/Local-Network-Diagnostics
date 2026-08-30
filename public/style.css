@@ -405,19 +405,38 @@ header .sub {
   transition: background 0.2s;
 }
 
+/* The dot mirrors the server's verdict for this client: green / yellow /
+ * red while a test runs; no class (track gray) while warming up, before
+ * the operator starts a test, or while connecting. */
+.perf .dot.ok,
+.perf .dot.warn,
+.perf .dot.bad {
+  box-shadow: 0 0 0 6px var(--halo);
+  animation: pulse 1.6s ease-in-out infinite;
+}
+
 .perf .dot.ok {
   background: var(--green);
-  box-shadow: 0 0 0 6px var(--green-soft);
-  animation: pulse 1.6s ease-in-out infinite;
+  --halo: var(--green-soft);
+}
+
+.perf .dot.warn {
+  background: var(--yellow);
+  --halo: var(--yellow-soft);
+}
+
+.perf .dot.bad {
+  background: var(--red);
+  --halo: var(--red-soft);
 }
 
 @keyframes pulse {
   0%,
   100% {
-    box-shadow: 0 0 0 4px var(--green-soft);
+    box-shadow: 0 0 0 4px var(--halo);
   }
   50% {
-    box-shadow: 0 0 0 10px var(--green-soft);
+    box-shadow: 0 0 0 10px var(--halo);
   }
 }
 

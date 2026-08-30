@@ -135,6 +135,38 @@ test("MetricsCollector: burst timeout rate is computed per completed burst windo
   assert.equal(collector.burstTimeoutRate, 0);
 });
 
+test("MetricsCollector: jitter ignores the phase step and the wake-up sample", () => {
+  const collector = new MetricsCollector({ windowSize: 10 });
+
+  // A hot burst block; the calm block sits at the woken (idle) level — the
+  // Wi-Fi power-save wake-up every idle second adds to a 1 Hz probe.
+  [3, 3, 3, 3, 3, 3, 3, 3].forEach((rtt) => {
+    collector.record(rtt, null, "burst");
+  });
+  [80, 80].forEach((rtt) => collector.record(rtt, null, "calm"));
+
+  // Legacy whole-window math diffed 3 → 80 and reported the phase step
+  // itself as ~77 ms of jitter for the whole calm phase. Scoped: only
+  // same-phase, adjacent, non-wake-up pairs count.
+  assert.equal(collector.jitterP95, 0);
+  assert.equal(collector.rttP95, 3, "calm samples stay out of the RTT metrics");
+  assert.equal(collector.burstSampleCount, 8);
+  assert.equal(collector.lastRtt, 80, "the raw latest probe is untouched");
+});
+
+test("MetricsCollector: a burst that opens with a wake-up sample stays clean", () => {
+  const collector = new MetricsCollector({ windowSize: 10 });
+
+  [80, 80].forEach((rtt) => collector.record(rtt, null, "calm"));
+  // The first burst probe pays the wake-up; the radio is hot from the next.
+  collector.record(80, null, "burst");
+  [3, 3, 3].forEach((rtt) => collector.record(rtt, null, "burst"));
+
+  assert.equal(collector.jitterP95, 0, "the wake-up sample forms no pair");
+  assert.equal(collector.rttP95, 3, "nor enters the RTT percentiles");
+  assert.equal(collector.burstSampleCount, 3);
+});
+
 // ------------------------------------------------------------
 // decideStatus — spec priority order
 // ------------------------------------------------------------
@@ -376,6 +408,7 @@ test("DiagnosticsSession: per-client statuses, gray excluded from Overall", () =
   session.addClient(1);
   session.addClient(2);
   session.start();
+  session.setPhase("burst"); // the server enters burst at diag:start
 
   session.recordAck(1, 2);
   session.recordAck(1, 3);
@@ -398,6 +431,7 @@ test("DiagnosticsSession: Overall = worst online status", () => {
   session.addClient(2);
   session.addClient(3);
   session.start();
+  session.setPhase("burst");
 
   session.recordAck(1, 2);
   session.recordAck(2, 2);
@@ -461,6 +495,7 @@ test("DiagnosticsSession: addClient records Connected; re-adding the same id is 
 
   session.addClient(1, 1000);
   session.start();
+  session.setPhase("burst");
 
   let snap = session.snapshot();
   assert.equal(snap.clients["1"].lastEvent.type, "connected");
@@ -492,6 +527,7 @@ test("DiagnosticsSession: disconnectClient flips Red immediately and records the
 
   session.addClient(1, 1000);
   session.start();
+  session.setPhase("burst");
   session.recordAck(1, 2);
   session.recordAck(1, 3);
   session.cycleAll();
@@ -523,6 +559,7 @@ test("DiagnosticsSession: disconnected clients are excluded from Overall", () =>
   session.addClient(1);
   session.addClient(2);
   session.start();
+  session.setPhase("burst");
 
   session.recordAck(1, 2);
   session.recordAck(1, 3);
@@ -583,4 +620,65 @@ test("DiagnosticsSession: snapshot exposes loss rate, processing time and events
   assert.equal(snap.clients["1"].lastEvent.type, "connected");
   assert.equal(snap.clients["1"].lastEvent.agoMs, 400, "900 - 500");
   assert.equal(snap.clients["1"].events.length, 1);
+});
+
+test("DiagnosticsSession: the calm wake-up step never flags a healthy client", () => {
+  const session = new DiagnosticsSession();
+  session.addClient(1);
+  session.start();
+  session.setPhase("burst");
+
+  for (let i = 0; i < 8; i += 1) {
+    session.recordAck(1, 3);
+  }
+  session.cycleAll();
+  session.cycleAll();
+  assert.equal(session.snapshot().overall, STATUS.GREEN);
+
+  // Calm: every idle second lets Wi-Fi power save add its wake-up delay,
+  // so each 1 Hz probe reads ~80 ms on an otherwise perfect link. The
+  // legacy window kept the burst samples beside them, read the phase step
+  // (~77 ms) off them as jitter and flagged Yellow for the whole calm
+  // phase — and the 10-cycle hysteresis could never recover to Green.
+  session.setPhase("calm");
+  session.recordAck(1, 80);
+  session.recordAck(1, 80);
+  session.cycleAll();
+  session.cycleAll();
+
+  let snap = session.snapshot();
+  assert.equal(snap.overall, STATUS.GREEN);
+  assert.equal(snap.clients["1"].metrics.jitterP95, 0);
+  assert.equal(snap.clients["1"].metrics.rttP95, 3);
+
+  // The next burst opens with a wake-up sample before the radio is hot
+  // again; it must not swing the metrics either.
+  session.setPhase("burst");
+  session.recordAck(1, 80);
+  session.recordAck(1, 3);
+  session.recordAck(1, 3);
+  session.cycleAll();
+
+  snap = session.snapshot();
+  assert.equal(snap.overall, STATUS.GREEN);
+  assert.equal(snap.clients["1"].metrics.jitterP95, 0);
+  assert.equal(snap.clients["1"].metrics.rttP95, 3);
+});
+
+test("DiagnosticsSession: a client joining mid-calm stays Gray until load evidence", () => {
+  const session = new DiagnosticsSession();
+  session.addClient(1);
+  session.start();
+  session.setPhase("calm");
+
+  session.recordAck(1, 80);
+  session.recordAck(1, 80);
+  session.cycleAll();
+  session.cycleAll();
+  session.cycleAll();
+  assert.equal(
+    session.snapshot().clients["1"].status,
+    STATUS.GRAY,
+    "calm acks alone are not show-condition evidence",
+  );
 });

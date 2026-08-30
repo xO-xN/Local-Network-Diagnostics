@@ -3,7 +3,9 @@
 // Minimal mobile client: joins the score server automatically (recovering
 // the client id via the persisted claim token) and answers every
 // diagnostics probe immediately so the server can measure the real round
-// trip. The page shows exactly one thing: "Connected, testing…".
+// trip. The page shows exactly one signal: the dot mirrors the server's
+// live verdict for THIS client — green / yellow / red while a test runs,
+// gray while warming up or before the operator starts one.
 
 const P = window.PNDS;
 
@@ -24,6 +26,12 @@ const dot = document.getElementById("perf-dot");
 const statusEl = document.getElementById("perf-status");
 const metaEl = document.getElementById("perf-meta");
 
+// Server-measured status → dot class. Gray (warming up, or no test
+// running) keeps the plain track-colored dot.
+const STATUS_CLASS = { green: "ok", yellow: "warn", red: "bad" };
+
+let clientId = null;
+
 const socket = io(
   "http://" + location.hostname + ":" + P.performerPort,
   { reconnection: true, reconnectionDelay: 1000 },
@@ -31,6 +39,7 @@ const socket = io(
 
 socket.on(P.events.joined, (data) => {
   localStorage.setItem(P.tokenKey, data.token);
+  clientId = data.id;
   setJoined(true, data.id);
 });
 
@@ -51,6 +60,27 @@ socket.on("disconnect", () => {
   setJoined(false);
 });
 
+// The state broadcast reaches every socket; this page reads only its own
+// card out of the snapshot and mirrors the verdict on the dot.
+socket.on(P.events.state, (state) => {
+  if (clientId === null) {
+    return;
+  }
+
+  const diag = state && state.diag;
+  const me = diag && diag.clients ? diag.clients[clientId] : null;
+  const cls = STATUS_CLASS[me && diag.running ? me.status : null];
+
+  dot.classList.remove("ok", "warn", "bad");
+
+  if (cls) {
+    dot.classList.add(cls);
+  }
+
+  statusEl.textContent =
+    diag && diag.running ? "Connected, testing…" : "Connected";
+});
+
 // Diagnostics: answer every probe immediately so the server can measure
 // the real round trip. t0/t1 are performance.now() timestamps around the
 // reply — the server uses them only for the client processing time (the
@@ -67,11 +97,13 @@ socket.on(P.events.diagProbe, (payload) => {
 
 function setJoined(joined, id) {
   if (joined) {
-    dot.classList.add("ok");
-    statusEl.textContent = "Connected, testing…";
+    // The dot stays gray until the first state broadcast (the server
+    // sends one right after "joined") paints the real status.
+    statusEl.textContent = "Connected";
     metaEl.textContent = "Client " + id;
   } else {
-    dot.classList.remove("ok");
+    clientId = null;
+    dot.classList.remove("ok", "warn", "bad");
     statusEl.textContent = "Connecting…";
     metaEl.textContent = "";
   }
