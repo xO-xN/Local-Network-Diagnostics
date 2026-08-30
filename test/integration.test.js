@@ -1,6 +1,7 @@
 const assert = require("node:assert/strict");
 const test = require("node:test");
 const { spawn } = require("node:child_process");
+const net = require("node:net");
 const path = require("node:path");
 
 const { io } = require("socket.io-client");
@@ -799,5 +800,70 @@ test("diagnostics: disconnect → Red card, reconnect via token → warming up �
     monitor,
     (state) => state.diag && state.diag.running === false,
     5000,
+  );
+});
+
+test("shutdown: SIGTERM completes promptly with live clients still connected", async (t) => {
+  const server = spawn(process.execPath, ["server.js", "--audio-mode", "none"], {
+    cwd: PROJECT_ROOT,
+    stdio: ["ignore", "ignore", "ignore"],
+  });
+  t.after(() => server.kill("SIGKILL"));
+
+  await waitForHealthReady();
+
+  // The worst case the App leaves behind on stop: a joined performer
+  // (websocket), a polling-only client (a phone on a weak network), and
+  // raw keep-alive HTTP connections on both ports (the monitor webview's
+  // page stays mounted through the stop fade).
+  const performer = await joinWithToken(null);
+  t.after(() => performer.socket.close());
+
+  const polling = io(PERFORMER_URL, {
+    transports: ["polling"],
+    reconnection: false,
+  });
+
+  await new Promise((resolve) => polling.once("connect", resolve));
+  t.after(() => polling.close());
+
+  const raw = [];
+
+  for (const port of [6868, 6869]) {
+    const socket = net.connect({ port, host: "127.0.0.1" });
+
+    await new Promise((resolve) => socket.once("connect", resolve));
+    socket.write(
+      "GET / HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: keep-alive\r\n\r\n",
+    );
+    raw.push(socket);
+  }
+  t.after(() => raw.forEach((s) => s.destroy()));
+
+  const startedAt = Date.now();
+
+  server.kill("SIGTERM");
+
+  const exitCode = await new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error("server did not exit within 2 s of SIGTERM")),
+      2000,
+    );
+
+    server.once("exit", (code) => {
+      clearTimeout(timer);
+      resolve(code);
+    });
+  });
+
+  const elapsed = Date.now() - startedAt;
+
+  // The host's kill window is 5 s (then SIGKILL, and the operator stares
+  // at a blank stop cover meanwhile): the server must be long gone
+  // before that window closes.
+  assert.equal(exitCode, 0, "graceful shutdown completes");
+  assert.ok(
+    elapsed < 1000,
+    `shutdown took ${elapsed} ms with live clients still connected`,
   );
 });
