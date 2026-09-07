@@ -107,13 +107,20 @@ const registry = new PlayerRegistry({
 // status. The probe loop below owns all timers.
 const diag = new DiagnosticsSession();
 
-// In-flight probes per client id: id -> seq -> { sentAt, timer }. A probe is
-// pending from the moment it is sent until its ack or its timeout. Burst
-// phase sends ~30 probes per second per client, so several can be in flight
-// at once — hence the per-seq map (baseline's single-pending invariant no
-// longer holds).
+// In-flight probes per client id: id -> seq -> { sentAt, phase, timedOut,
+// timer }. A probe is pending from the moment it is sent until its ack, its
+// timeout PLUS the late-ack grace, or its hard delete. Burst phase sends
+// ~30 probes per second per client, so several can be in flight at once —
+// hence the per-seq map (baseline's single-pending invariant no longer
+// holds).
 const pendings = new Map();
 const probeSeqs = new Map(); // per-client probe sequence counters
+
+// How long a timed-out probe stays matchable: an ack landing inside the
+// grace window proves the probe was delivered (slowly, not lost) and
+// withdraws the timeout. Past it the entry is dropped — the ack would be
+// information about a link two seconds gone.
+const LATE_ACK_GRACE_MS = 2000;
 
 // Burst phase state: the test alternates [2 s burst @ 30 msg/s] →
 // [2 s calm @ 1 Hz] while running (spec; issue #5).
@@ -228,20 +235,27 @@ io.on("connection", (socket) => {
     const bySeq = pendings.get(id);
     const pending = bySeq && bySeq.get(payload.seq);
 
-    // A late ack for an already-timed-out probe carries a stale seq and is
-    // ignored; the timeout already counted.
+    // An ack for an unknown seq (never sent, or past the late-ack grace)
+    // is stale information about a probe already settled.
     if (!pending) {
       return;
     }
 
     removePending(id, payload.seq);
 
+    const rttMs = Date.now() - pending.sentAt;
     const processingMs =
       typeof payload.t1 === "number" && typeof payload.t0 === "number"
         ? payload.t1 - payload.t0
         : null;
 
-    diag.recordAck(id, Date.now() - pending.sentAt, processingMs);
+    // Inside the grace window after a timeout: delivered-but-slow — the
+    // collector withdraws the loss and keeps the RTT.
+    if (pending.timedOut) {
+      diag.recordLateAck(id, rttMs, processingMs, pending.phase);
+    } else {
+      diag.recordAck(id, rttMs, processingMs, pending.phase);
+    }
   });
 
   socket.on("disconnect", () => {
@@ -273,10 +287,35 @@ function broadcastState() {
 function sendProbe(id, socket, timeoutMs) {
   const seq = (probeSeqs.get(id) || 0) + 1;
   const sentAt = Date.now();
-  const timer = setTimeout(() => {
-    if (removePending(id, seq)) {
-      diag.recordTimeout(id);
-    }
+
+  // The pending entry carries the phase the probe was SENT in: a burst
+  // probe answered just after the calm phase began must land as a burst
+  // sample, whatever phase the test is in by the time the ack arrives.
+  const pending = {
+    sentAt,
+    phase: diag.phase,
+    timedOut: false,
+    timer: null,
+  };
+
+  // Deadline first: the timeout counts immediately (the Red rules need a
+  // timely signal), but the entry survives for the late-ack grace — an
+  // answer inside it is delivered-but-slow, not lost.
+  pending.timer = setTimeout(() => {
+    pending.timedOut = true;
+    diag.recordTimeout(id);
+
+    pending.timer = setTimeout(() => {
+      const bySeq = pendings.get(id);
+
+      if (bySeq && bySeq.get(seq) === pending) {
+        bySeq.delete(seq);
+
+        if (bySeq.size === 0) {
+          pendings.delete(id);
+        }
+      }
+    }, LATE_ACK_GRACE_MS);
   }, timeoutMs);
 
   probeSeqs.set(id, seq);
@@ -288,27 +327,30 @@ function sendProbe(id, socket, timeoutMs) {
     pendings.set(id, bySeq);
   }
 
-  bySeq.set(seq, { sentAt, timer });
+  bySeq.set(seq, pending);
   socket.emit(EVENTS.diagProbe, { seq });
 }
 
-// Removes one in-flight probe and prunes the per-client map when it empties.
-// Returns true when the probe was actually pending.
+// Removes one in-flight probe (whichever timer is live) and prunes the
+// per-client map when it empties. Returns the removed entry — the ack
+// handler needs to know whether the probe had already timed out.
 function removePending(id, seq) {
   const bySeq = pendings.get(id);
 
   if (!bySeq || !bySeq.has(seq)) {
-    return false;
+    return null;
   }
 
-  clearTimeout(bySeq.get(seq).timer);
+  const pending = bySeq.get(seq);
+
+  clearTimeout(pending.timer);
   bySeq.delete(seq);
 
   if (bySeq.size === 0) {
     pendings.delete(id);
   }
 
-  return true;
+  return pending;
 }
 
 function clearPending(id) {

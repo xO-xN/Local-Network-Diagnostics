@@ -331,9 +331,12 @@ test("diagnostics: Yellow under simulated latency, Red after 3 consecutive timeo
 
   let acking = true;
 
-  // 150 ms added latency: RTT ≈ 150 ms (below the 200 ms burst timeout and
-  // the 500 ms baseline timeout, above the 100 ms Yellow threshold — in
-  // both phases).
+  // 230 ms added latency: above the 200 ms Yellow threshold in both
+  // phases. In the burst phase the 200 ms probe deadline fires first and
+  // the ack lands inside the late-ack grace — delivered-but-slow, the
+  // loss is withdrawn and the RTT still colors (the v0.6.0 mechanics).
+  // The steady-state consecutive-timeout streak stays at 1 (never the 3
+  // of the Red rule).
   client.socket.on(EVENTS.diagProbe, (payload) => {
     if (!acking) {
       return;
@@ -347,7 +350,7 @@ test("diagnostics: Yellow under simulated latency, Red after 3 consecutive timeo
         t0,
         t1: performance.now(),
       });
-    }, 150);
+    }, 230);
   });
 
   const monitor = await connectMonitorSocket();
@@ -365,7 +368,7 @@ test("diagnostics: Yellow under simulated latency, Red after 3 consecutive timeo
   );
 
   assert.ok(
-    yellow.diag.clients["1"].metrics.rttP95 > 100,
+    yellow.diag.clients["1"].metrics.rttP95 > 200,
     "expected RTT p95 above the Yellow threshold",
   );
   assert.equal(yellow.diag.overall, STATUS.YELLOW);
@@ -425,7 +428,7 @@ test("diagnostics: Overall follows the worst online client across several client
           t0,
           t1: performance.now(),
         });
-      }, mode === "slow" ? 150 : 0);
+      }, mode === "slow" ? 230 : 0);
     });
 
     joined.mode = (next) => {
@@ -464,7 +467,7 @@ test("diagnostics: Overall follows the worst online client across several client
   );
   assert.equal(allGreen.diag.overall, STATUS.GREEN);
 
-  // Client 3 degrades to ~150 ms RTT → Yellow → Overall Yellow.
+  // Client 3 degrades to ~230 ms RTT → Yellow → Overall Yellow.
   clients[2].mode("slow");
 
   const yellow = await waitForState(
