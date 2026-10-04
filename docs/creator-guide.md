@@ -26,10 +26,10 @@ npm start    # 不需要任何音频参数；恒为无音频模式
 
 ### 3. 两个页面
 
-| 页面 | 地址 | 用途 |
-|---|---|---|
-| Performer | `http://<Host-LAN-IP>:6868/` | 手机客户端：自动加入并应答探针，只显示 "Connected, testing…" |
-| Monitor | `http://<Host-LAN-IP>:6869/` | 监视端：居中显示的网络诊断控制台（打开即自动开始测试；Overall、卡片网格、详情弹窗） |
+| 页面      | 地址                         | 用途                                                                     |
+| --------- | ---------------------------- | ------------------------------------------------------------------------ |
+| Performer | `http://<Host-LAN-IP>:6868/` | 手机客户端：自动加入并应答探针，显示设备编号、连接状态与网络结论         |
+| Monitor   | `http://<Host-LAN-IP>:6869/` | 监视端：仪器面板（打开即自动开始测试；整体网络结论、设备读数、详情窗口） |
 
 默认端口来自 `manifest.json` 的 `scoreServer.performerPort` / `monitorPort`——这是**唯一来源**。`public/shared.js` 和浏览器都会自动读取，不需要手动同步。
 
@@ -45,13 +45,13 @@ npm start    # 不需要任何音频参数；恒为无音频模式
 - **Hysteresis**：从 Red/Yellow 恢复到 Green 需要连续 10 个良好周期；任一坏周期重置计数；恶化立即生效。
 - **Overall**：所有**在线**且非 Gray 客户端中最差状态（Red > Yellow > Green）。断开（离线）客户端不参与 Overall，但其红色卡片保留可见。
 - **断开与事件日志**：客户端断开时卡片**保留并立即转 Red**；每个客户端记录事件（Connected / Disconnected / Reconnected，带时间戳，最多 20 条）；重连凭 claim token 恢复原 id，重新经过 Gray warming up 回到 Green。卡片与详情弹窗展示最近事件（如 "Disconnected 5s ago"）。
-- **Monitor 展示**（参照 Multichannel Signal Generator 的居中浅色卡片设计，纯 DOM，无 p5）：居中 Overall 横幅 + 每客户端一张卡片（状态色、状态文案、原因、Typical Response = RTT p50、Worst-case Response = RTT p95、Stability (Timing Variation) = jitter、最近事件）。**点击卡片打开详情弹窗**：p95、丢包率、处理耗时、完整事件日志（这些指标不参与状态判定）。Red 卡片文案固定为 **"Not suitable for performance"**。页面底部有 performer 页面 QR 码。无 Start/Stop 按钮（打开即自动测试），不显示 Burst/Calm 阶段。
+- **Monitor 展示**（v0.6.1 仪器面板）：与 Multichannel Gen 共用字体、灰绿表面和克制的分隔线。顶部呈现 server 的整体结论、在线数及就绪 / 需要关注 / 预热统计（离线记录不参与）；卡片突出设备编号、典型 RTT（p50）、最差 RTT（p95）、时间抖动（p95）和最近事件。点击卡片打开原生详情窗口，查看丢包率、客户端处理时间和完整事件日志（最多 20 条，最新在前）。卡片随实时快照原位更新，键盘焦点保留；关闭详情返回原卡片。底部展开「设备加入」二维码，手机自动加入。宽屏三列、中屏两列、窄屏单列，窄屏统计移至结论下方。
 - **Performer 页面**：手机端极简视图——自动加入（凭 localStorage 中的 claim token 恢复身份）、自动应答探针，只显示 **"Connected, testing…"**。
 - **文案单一来源（双语）**：`public/shared.js` 的 `copy` 表（`en` / `zh-CN` 两套，含状态文案、原因文案、事件文案与 monitor 界面文案）。server 的 state 只携带语言中立的 reason key（`lib/diagnostics.js`），monitor 页按当前语言（`public/locale.js`）查表渲染；Red 卡片文案在两套语言里都固定显式（"Not suitable for performance" / "不适合现场演出"）。
 
 ## 主题跟随（App 集成）
 
-在 PNDS App（≥ v1.2.3）中运行时，monitor 页通过跨域 `postMessage` 接收 App 推送的主题（score project spec §5.3：`pnds:theme` 消息，含最终颜色值 palette），幂等地写入页面 CSS 变量——App 打开 monitor、切换主题、窗口重获焦点时都会重推，页面始终与 App 一致（Lavender / Sand / Stage / Brutal 全部四套）。加载时支持 `?theme=<name>` 查询参数作为首帧初值（App 目前不携带该参数，缺席时用工程自带配色，行为与从前完全一致）。状态色（绿/黄/灰）没有 App 对应物，按调色板明暗推导两档，四套主题下均保持 ≥4.5:1 可读。performer 页不参与、恒用工程自带配色。实现见 `public/theme.js`。
+在 PNDS App（≥ v1.2.3）中运行时，monitor 页通过跨域 `postMessage` 接收 App 推送的主题（score project spec §5.3：`pnds:theme` 消息，含最终颜色值 palette），幂等地写入页面 CSS 变量——App 打开 monitor、切换主题、窗口重获焦点时都会重推，页面始终与 App 一致（Pond / Sand / Stage / Brutal 全部四套）。加载时支持 `?theme=<name>` 查询参数作为首帧初值（App 目前不携带该参数，缺席时用工程自带的灰绿配色）。状态色（绿/黄/灰）没有 App 对应物，按调色板明暗推导两档，四套主题下均保持 ≥4.5:1 可读。Brutal 同步为方角硬阴影，减少动态效果设置会关闭过渡。performer 页不参与、恒用工程自带配色。实现见 `public/theme.js`。
 
 ## 语言跟随（App 集成）
 
@@ -80,26 +80,26 @@ public/                   浏览器端（performer + monitor 双角色单页）
   shared.js               浏览器与 server 共用的常量：事件名 / 诊断词汇表 / 双语文案表 copy（单一事实来源，见下文）
   theme.js                主题跟随（仅 monitor 分支加载）：监听 App 的 pnds:theme 消息，写入 CSS 变量
   locale.js               语言跟随（仅 monitor 分支加载）：监听 App 的 pnds:locale 消息，维护当前语言并通知重渲染
-  performer.js            手机端：自动加入 + 应答探针，显示"已连接，正在测速"（DOM）
-  monitor.js              监视端：居中卡片控制台 + 详情弹窗（DOM）
-  style.css               设计语言（浅色主题，参照 Multichannel Signal Generator）
+  performer.js            手机端：自动加入 + 应答探针，设备编号与连接 / 测量状态（DOM）
+  monitor.js              监视端：仪器面板 + 原生详情窗口（DOM）
+  style.css               仪器面板语言（默认灰绿，Monitor 跟随 App 主题）
 test/                     node --test 回归测试
 docs/                     本指南与交接文档
 ```
 
 ## 创作时改什么
 
-| 想做什么 | 改哪里 |
-|---|---|
-| 换作品名 / 端口 | `manifest.json`（改端口只需改这里） |
-| 改监视端 | `public/monitor.js`（DOM）+ `public/style.css` |
-| 改主题跟随 | `public/theme.js`（palette → CSS 变量映射、状态色推导、`?theme=` 初值） |
-| 改语言跟随 / 加新语言 | `public/locale.js`（支持的语言代码）+ `public/shared.js` 的 `copy` 表（两套语言同形状，`test/locale.test.js` 会拦） |
-| 改 performer 端 | `public/performer.js`（DOM） |
-| 改诊断阈值 / 规则 | `lib/diagnostics.js`（状态机、阈值、窗口） |
-| 改界面文案（含 Red 文案） | `public/shared.js` 的 `copy` 双语表（en / zh-CN 各一处，含 Red 文案；server 端 reason 只用 key） |
-| 加 Socket.IO 事件 | `public/shared.js`（事件名）+ `server.js`（处理） |
-| 改客户端上限 | `public/shared.js` 的 `maxClients` |
+| 想做什么                  | 改哪里                                                                                                              |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| 换作品名 / 端口           | `manifest.json`（改端口只需改这里）                                                                                 |
+| 改监视端                  | `public/monitor.js`（DOM）+ `public/style.css`                                                                      |
+| 改主题跟随                | `public/theme.js`（palette → CSS 变量映射、状态色推导、`?theme=` 初值）                                             |
+| 改语言跟随 / 加新语言     | `public/locale.js`（支持的语言代码）+ `public/shared.js` 的 `copy` 表（两套语言同形状，`test/locale.test.js` 会拦） |
+| 改 performer 端           | `public/performer.js`（DOM）                                                                                        |
+| 改诊断阈值 / 规则         | `lib/diagnostics.js`（状态机、阈值、窗口）                                                                          |
+| 改界面文案（含 Red 文案） | `public/shared.js` 的 `copy` 双语表（en / zh-CN 各一处，含 Red 文案；server 端 reason 只用 key）                    |
+| 加 Socket.IO 事件         | `public/shared.js`（事件名）+ `server.js`（处理）                                                                   |
+| 改客户端上限              | `public/shared.js` 的 `maxClients`                                                                                  |
 
 ## 单一事实来源（Single Source of Truth）
 

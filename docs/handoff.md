@@ -26,8 +26,8 @@
 ## 决策记录
 
 - **本工程是纯网络测试工具（无音频）**：删除模板的音频链路（audio/、supercollider/、audio-engine/osc-transport、control/set-out 事件、lastControls、freqRange）。`PlayerRegistry` 上限改为 `shared.maxClients`（16）。health 恒报告 `audioMode: "none"` + `audio.status: "disabled"`（运行契约对 none 模式的要求；模板原来在 none 模式误报 "ready"，本工程修正）。
-- **performer 端极简**：只显示 "Connected, testing…"（英文，与全站一致；自动 join + 应答探针 + claim token 恢复身份），无任何演奏 UI。
-- **monitor 端居中设计**：参照 "Multichannel Signal Generator" 示例的前端（浅色主题、居中 flex 列、圆角白卡片、accent `#5a4ff3`）；纯 DOM，**不再使用 p5**。卡片网格由诊断名册（`diag.clients`）驱动（断开客户端保留为红卡）；详情为居中模态弹窗。**无 Start/Stop 按钮——打开页面即自动开始测试**（`diagStart` 事件保留，server 对重复 start 幂等）；**不显示 Burst/Calm 阶段徽章**（`diagPhases` 仍由 server 使用，仅 UI 不展示）。
+- **performer 端极简**：显示设备编号、连接状态和 server 的测量结论（英文；自动 join + 应答探针 + claim token 恢复身份），无任何演奏 UI。
+- **仪器面板设计（2026-10-04，v0.6.1）**：延伸 Multichannel Gen 的灰绿表面、系统字体、等宽编号及数据读数。Monitor 顶部以整体结论为主，在线设备统计仅计 connected 客户端；保留离线红卡，不改 server 状态机及阈值。设备卡片为原生按钮，以 id 保留 DOM 节点，常规快照不移动按钮，避免实时刷新丢失焦点。详情采用原生 `<dialog>`，关闭按钮保持固定；Escape / 关闭 / 背景点击返回原卡片，记录移除则返回 Devices 标题。展示 server 保留的完整事件日志（最多 20 条，倒序），不可用数值显示破折号。底部 QR 收进原生 disclosure。宽屏三列、中屏两列、窄屏单列；Brutal 使用方角硬阴影，支持 reduced motion。手机页共用视觉语言但保持英文和工程默认配色。**无 Start/Stop 按钮**，打开页面即自动开始测试；不显示 Burst/Calm 徽章。
 - **`lib/diagnostics.js` 是"lib/ 不含作品逻辑"的例外**：本工程的作品即网络诊断，指标与状态机是作品核心；保留在 lib/ 是因为它是纯函数模块（无 IO），与 `health.js` / `players.js` 一样可独立单测。阈值（v0.6.0 校准：RTT 黄 >200/绿 <100 ms、jitter 黄 >50/绿 <25 ms、burst 未应答率 >5%、连续 3 次、200/500 ms 超时、2 s 阶段）与规则优先级都在此文件，改作品行为改这里。
 - **探针只发给已 join 的 performer**；monitor 页面（不 join）不参与探测——spec 的测试范围是"Server ↔ Wi-Fi 连接的移动客户端"，monitor 运行在操作主机上。
 - **1–2 次连续 timeout 判 Yellow**：spec 只规定"连续 3 次 → Red"，未规定 1–2 次；为避免"正在超时的客户端显示 Green 并累计 hysteresis 恢复计数"，补为 Yellow（"Recent probe timeouts"）。
@@ -43,10 +43,10 @@
 - **performer 页不参与语言跟随**：它开在演奏者手机浏览器里（QR 码直达），不在 App 内、没有 postMessage 通道，恒为英文；`<html lang>` 静态值因此修正为 `en`（monitor 侧由 locale.js 动态同步）。
 - **30 msg/s 下连续超时规则先于 burst 超时率规则触发**（spec 优先级 2 > 3）：一次丢 3+ 个连续 probe 即 Red；burst 规则覆盖"散布丢包"场景。E2E 用孤立丢包（每 5 丢 1）隔离 burst 规则。
 - **丢包率 = timeouts / (acks + timeouts)**（生命周期计数，滑动窗口裁剪不影响），仅详情面板。
-- QR 码由 `lib/qr.js` 生成（`qrcode` npm 包，`GET /qr` 挂在 monitor server），monitor 页面底部展示。
+- QR 码由 `lib/qr.js` 生成（`qrcode` npm 包，`GET /qr` 挂在 monitor server），monitor 页面底部「设备加入」内展开。
 - **主题跟随走 score project spec §5.3（App issue #44/#45）**：monitor 页消费 App 的 `pnds:theme` postMessage（best-effort、最新值覆盖，App 在 iframe load / 切主题 / 焦点重获时重推），幂等写入 CSS 变量；未知或畸形消息静默忽略、页面不报错。映射在 `public/theme.js` 的 `SURFACE_VARIABLES`（bg→`--bg`、card→`--card`、text→`--text`、text-secondary→`--muted`、accent→`--accent`、danger→`--danger`/`--red`、pill→`--track`）；palette 其余键（sidebar-bg、`*-hover`/`*-foreground`、warning）页面无对应面，不消费。
 - **状态色（绿/黄/灰）按明暗推导，不直接映射 warning**：App 的 warning/danger 是"填充色 + 配套 label 色"的组合，而本页状态色直接作卡片上的文字（App 的 warning 填充色在浅色卡上作文字不达 4.5:1）。按 `palette.card` 亮度分档（<0.2 为暗），亮/暗两套状态色在四主题卡面上均 ≥4.5:1（`test/theme.test.js` 断言）。Red 是例外——App 保证 danger 作文字 ≥4.5:1，直接映射。
-- **`?theme=<name>` 为前瞻支持**：App 目前不携带该参数；四套主题初值复制自 App 的 `theme-variables.css`（消息到达后原样覆盖，故复制漂移无害但应随 App 主题演进而同步）。参数缺席或未知时用工程自带默认配色；`style.css` 的 `:root` 保持工程原值不动——performer 页共享该样式，"行为不变"优先于"首条消息零闪变"。
+- **`?theme=<name>` 为前瞻支持**：App 目前不携带该参数；四套主题初值复制自 App 的 `theme-variables.css`（消息到达后原样覆盖，故复制漂移无害但应随 App 主题演进而同步）。参数缺席或未知时用工程自带默认配色；`style.css` 的 `:root` 定义灰绿仪器默认配色；performer 页共享该默认配色，Monitor 额外消费 App palette。Brutal 几何通过 `data-utility-theme` 跟随，`pond` 初值兼容历史 `lavender` 配色。
 - 本工程**不预装 node_modules**（`.gitignore` 排除）；首次使用按 creator-guide 执行 `npm install`。发布包必须预装。
 
 ## 验证命令

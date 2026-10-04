@@ -80,7 +80,11 @@ test("theme message: palette keys land in the page CSS variables", () => {
   assert.equal(variables["--accent"], "#5a4ff3");
   assert.equal(variables["--danger"], "#e11d48");
   assert.equal(variables["--track"], "#e8ebf7", "pill → --track");
-  assert.equal(variables["--red"], "#e11d48", "danger doubles as the Red status");
+  assert.equal(
+    variables["--red"],
+    "#e11d48",
+    "danger doubles as the Red status",
+  );
 });
 
 test("theme message: palette keys with no page variable are not written", () => {
@@ -122,7 +126,11 @@ test("unknown or malformed messages are ignored, not applied", () => {
   ];
 
   for (const data of malformed) {
-    assert.equal(variablesFromMessage(data), null, `should ignore ${JSON.stringify(data)}`);
+    assert.equal(
+      variablesFromMessage(data),
+      null,
+      `should ignore ${JSON.stringify(data)}`,
+    );
   }
 });
 
@@ -206,8 +214,16 @@ test("?theme= paints a first frame; absence keeps the page's own colors", () => 
 function loadMonitorPage(search) {
   const root = fakeStyleRoot();
   const listeners = {};
+  const attributes = {};
   const page = {
-    document: { documentElement: { style: root.style } },
+    document: {
+      documentElement: {
+        style: root.style,
+        setAttribute: (name, value) => {
+          attributes[name] = value;
+        },
+      },
+    },
     location: { search },
     addEventListener: (type, handler) => {
       (listeners[type] = listeners[type] || []).push(handler);
@@ -220,13 +236,31 @@ function loadMonitorPage(search) {
     vm.createContext(page),
   );
 
-  return { properties: root.properties, listeners };
+  return { properties: root.properties, listeners, attributes };
 }
+
+test("instrument shape follows the initial theme and later App switches", () => {
+  const page = loadMonitorPage("?theme=brutal");
+  assert.equal(page.attributes["data-utility-theme"], "brutal");
+  page.listeners.message[0]({ data: { ...SPEC_MESSAGE, theme: "pond" } });
+  assert.equal(page.attributes["data-utility-theme"], "pond");
+  assert.equal(page.properties.get("--bg"), THEME_PALETTES.lavender.bg);
+  assert.equal(
+    initialVariables("?theme=pond")["--accent"],
+    THEME_PALETTES.lavender.accent,
+  );
+  page.listeners.message[0]({ data: { type: "other", theme: "brutal" } });
+  assert.equal(page.attributes["data-utility-theme"], "pond");
+});
 
 test("monitor page wiring: message → documentElement CSS variables", () => {
   const page = loadMonitorPage("");
 
-  assert.equal(page.listeners.message.length, 1, "exactly one message listener");
+  assert.equal(
+    page.listeners.message.length,
+    1,
+    "exactly one message listener",
+  );
 
   page.listeners.message[0]({ data: SPEC_MESSAGE });
   assert.equal(page.properties.get("--bg"), "#eef0f8");

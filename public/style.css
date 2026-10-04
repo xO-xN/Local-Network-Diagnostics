@@ -1,451 +1,697 @@
-/* Local Network Diagnostics — both pages.
- *
- * Visual language follows the "Multichannel Signal Generator" example:
- * light theme, centered flex column, white rounded cards with subtle
- * shadows, indigo accent. No p5 — plain DOM.
- */
-
-/* The project's own colors — the standalone look, shared by both pages.
- * Inside the App, theme.js (monitor page only) rewrites the consumed
- * variables from the App's pnds:theme pushes (spec §5.3 "Theme
- * Following"); absent a theme, these values render unchanged. */
+/* PNDS utility instrument language: shared with Multichannel Gen.
+   The monitor follows the App palette; the performer uses these defaults. */
 :root {
-  --bg: #f4f5fa;
-  --card: #ffffff;
-  --text: #1c1e2b;
-  --muted: #8a8fa3;
-  --accent: #5a4ff3;
-  --accent-soft: #e8eafd;
-  --danger: #e11d48;
-  --track: #e8ebf7;
-  --green: #16a34a;
-  --green-soft: #e7f6ec;
-  --yellow: #d97706;
-  --yellow-soft: #fdf3e3;
-  --red: #e11d48;
-  --red-soft: #fde8ee;
-  --gray: #8a8fa3;
-  --gray-soft: #eef0f6;
+  --bg: #edf0ef;
+  --card: #f9fbfa;
+  --text: #20332f;
+  --muted: #62716c;
+  --accent: #256c5b;
+  --accent-soft: #dfede7;
+  --danger: #bc354a;
+  --track: #d6dfdb;
+  --green: #15803d;
+  --yellow: #b45309;
+  --red: #bc354a;
+  --gray: #62716c;
+  --line: color-mix(in srgb, var(--text) 18%, var(--card));
+  --surface: color-mix(in srgb, var(--card) 70%, var(--bg));
+  --mono: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+  --radius: 18px;
+  --duration: 140ms;
 }
-
 * {
   box-sizing: border-box;
 }
-
 html,
 body {
   margin: 0;
   min-height: 100%;
 }
-
 body {
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
-    "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
   background: var(--bg);
   color: var(--text);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  min-height: 100vh;
-  padding: 20px;
+  min-block-size: 100vh;
+  display: grid;
+  place-items: center;
+  padding: clamp(20px, 4vw, 48px);
 }
-
+[hidden] {
+  display: none !important;
+}
+button,
+summary {
+  -webkit-tap-highlight-color: transparent;
+  cursor: default;
+}
+button {
+  font: inherit;
+  color: inherit;
+}
+button:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--text);
+  outline-offset: 5px;
+}
 #app {
+  inline-size: min(1040px, 100%);
+}
+.brand {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 16px;
-  width: 100%;
-}
-
-header {
-  text-align: center;
-}
-
-header h1 {
-  font-size: 16px;
-  font-weight: 600;
-  margin: 0 0 4px;
-}
-
-header .sub {
-  font-size: 12px;
+  gap: 10px;
+  margin-block-end: 28px;
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.08em;
   color: var(--muted);
 }
-
-/* ------------------------------------------------------------
- * Status palette (applied via .st-* on cards / overall)
- * ------------------------------------------------------------ */
-
+.brand svg {
+  inline-size: 28px;
+  block-size: 20px;
+  color: var(--accent);
+}
+header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+}
+h1 {
+  font-size: clamp(27px, 3.8vw, 42px);
+  font-weight: 650;
+  letter-spacing: -0.055em;
+  margin: 0;
+  line-height: 1.1;
+}
+header .sub {
+  margin: 10px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.activity {
+  text-align: end;
+  flex-shrink: 0;
+}
+.activity-value {
+  display: block;
+  font-family: var(--mono);
+  font-size: 28px;
+  letter-spacing: -0.06em;
+  line-height: 1.2;
+}
+.activity-value small {
+  font-size: 14px;
+  color: var(--muted);
+}
+.activity-label {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  margin-block-start: 5px;
+}
 .st-green {
   --st: var(--green);
-  --st-soft: var(--green-soft);
 }
-
 .st-yellow {
   --st: var(--yellow);
-  --st-soft: var(--yellow-soft);
 }
-
 .st-red {
   --st: var(--red);
-  --st-soft: var(--red-soft);
 }
-
 .st-gray,
 .st-idle {
   --st: var(--gray);
-  --st-soft: var(--gray-soft);
 }
-
 .dot {
-  width: 10px;
-  height: 10px;
+  display: inline-block;
+  inline-size: 8px;
+  block-size: 8px;
   border-radius: 50%;
   background: var(--track);
-  flex: none;
+  flex-shrink: 0;
 }
-
 .dot.on {
   background: var(--st);
 }
-
-/* ------------------------------------------------------------
- * Overall banner (monitor)
- * ------------------------------------------------------------ */
-
+.panel {
+  margin-block-start: 28px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 5%, transparent);
+}
 .overall {
   display: flex;
   align-items: center;
-  gap: 12px;
-  background: var(--card);
-  border: 1px solid var(--track);
-  border-radius: 12px;
-  padding: 14px 22px;
-  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.08);
-  min-width: min(520px, 100%);
-  justify-content: center;
+  justify-content: space-between;
+  gap: 28px;
+  padding: 24px;
+  border-block-end: 1px solid var(--line);
 }
-
-.overall .dot {
-  width: 16px;
-  height: 16px;
-  background: var(--st);
+.verdict {
+  min-inline-size: 0;
 }
-
 .overall-label {
-  font-size: 12px;
-  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
   color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
 }
-
 .overall-copy {
-  font-size: 14px;
-  font-weight: 600;
+  margin: 10px 0 0;
+  font-size: clamp(19px, 2.5vw, 26px);
+  letter-spacing: -0.04em;
+  line-height: 1.25;
+  font-weight: 550;
+  max-inline-size: 430px;
   color: var(--st);
 }
-
-/* ------------------------------------------------------------
- * Client cards (monitor)
- * ------------------------------------------------------------ */
-
-#cards {
+.status-summary {
   display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 10px;
-  width: min(960px, 100%);
+  gap: 24px;
+  flex-shrink: 0;
 }
-
+.status-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  font-size: 10px;
+  color: var(--muted);
+}
+.summary-value {
+  font-family: var(--mono);
+  font-size: 25px;
+  color: var(--st);
+  letter-spacing: -0.06em;
+}
+.roster {
+  padding: 20px;
+}
+.section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 18px;
+}
+.section-head h2 {
+  font-size: 11px;
+  font-weight: 600;
+  margin: 0;
+}
+.section-note {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--muted);
+}
+#cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
 .client-card {
   display: flex;
   flex-direction: column;
-  gap: 3px;
-  background: var(--card);
-  border: 1px solid var(--track);
-  border-radius: 10px;
-  padding: 10px 14px 12px;
-  width: 250px;
-  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.06);
-  cursor: pointer;
-  user-select: none;
-  transition: border-color 0.12s, box-shadow 0.12s;
-  border-left: 3px solid var(--st);
+  align-items: stretch;
+  min-inline-size: 0;
+  padding: 18px 16px 14px;
+  text-align: start;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: calc(var(--radius) / 3);
+  transition:
+    border-color var(--duration),
+    box-shadow var(--duration);
 }
-
 .client-card:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent);
 }
-
-.client-card .head {
+.client-card:active {
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+.card-head {
   display: flex;
   align-items: center;
-  gap: 6px;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.client-card .status-word {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--st);
-}
-
-.client-card .copy {
-  font-size: 11px;
-  color: var(--st);
-}
-
-.client-card .reason {
-  font-size: 11px;
-  color: var(--muted);
-  min-height: 14px;
-}
-
-.client-card .row {
-  display: flex;
   justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 12px;
+}
+.identity {
+  display: flex;
+  align-items: baseline;
   gap: 8px;
+}
+.client-label {
+  font-size: 10px;
+  color: var(--muted);
+}
+.client-number {
+  font-family: var(--mono);
+  font-size: 32px;
+  letter-spacing: -0.065em;
+  line-height: 1;
+}
+.status-word {
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.02em;
+  color: var(--st);
+  border: 1px solid color-mix(in srgb, var(--st) 35%, var(--card));
+  padding: 5px 7px;
+  border-radius: 3px;
+}
+.client-card .copy {
   font-size: 12px;
+  font-weight: 550;
+  color: var(--st);
+  line-height: 1.5;
 }
-
-.client-card .row .k {
+.client-card .reason {
+  display: block;
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.5;
+  min-block-size: 30px;
+  padding-block-start: 4px;
+}
+.metrics {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+  padding-block: 14px 18px;
+  border-block-start: 1px solid var(--line);
+  margin-block-start: auto;
+}
+.metric {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  min-inline-size: 0;
+}
+.metric-label {
+  font-size: 9px;
+  line-height: 1.4;
   color: var(--muted);
 }
-
-.client-card .row .v {
-  font-variant-numeric: tabular-nums;
+.metric-data {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 3px;
 }
-
-.client-card .event {
-  font-size: 11px;
+.metric-value {
+  font-family: var(--mono);
+  font-size: 23px;
+  letter-spacing: -0.06em;
+}
+.metric-unit {
+  font-family: var(--mono);
+  font-size: 9px;
   color: var(--muted);
-  border-top: 1px solid var(--track);
-  margin-top: 4px;
-  padding-top: 4px;
 }
-
-.client-card .event.disconnected {
+.card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding-block-start: 12px;
+  border-block-start: 1px solid var(--line);
+}
+.event {
+  color: var(--muted);
+  font-size: 9px;
+  line-height: 1.5;
+}
+.event.disconnected {
   color: var(--red);
 }
-
-.hint {
-  font-size: 11px;
+.details-link {
   color: var(--muted);
+  font-size: 9px;
+  flex-shrink: 0;
 }
-
-/* ------------------------------------------------------------
- * Details modal (monitor)
- * ------------------------------------------------------------ */
-
-.modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(28, 30, 43, 0.45);
+.empty {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  padding: 20px;
-  z-index: 10;
+  min-block-size: 240px;
+  text-align: center;
+  padding: 28px;
 }
-
-.modal.hidden {
-  display: none;
+.empty-mark {
+  font-family: var(--mono);
+  font-size: 40px;
+  color: var(--muted);
+  font-weight: 300;
 }
-
-.modal-card {
-  background: var(--card);
-  border-radius: 14px;
-  box-shadow: 0 10px 40px rgba(23, 26, 43, 0.25);
-  width: min(420px, 100%);
-  max-height: 80vh;
-  overflow-y: auto;
-  padding: 18px 20px;
-  border-top: 4px solid var(--st);
+.empty h3 {
+  font-size: 18px;
+  letter-spacing: -0.025em;
+  font-weight: 550;
+  margin: 14px 0 8px;
 }
-
-.modal-card .head {
+.empty p {
+  max-inline-size: 330px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin: 0;
+}
+footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  gap: 14px;
+  margin-block-start: 16px;
+  color: var(--muted);
+  font-size: 11px;
 }
-
-.modal-card .head .title {
+.hint {
+  margin: 0;
+  line-height: 1.6;
+}
+.remote {
+  position: relative;
+  flex-shrink: 0;
+}
+.remote summary {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-.modal-card .close {
-  border: none;
-  background: none;
-  font-size: 20px;
-  line-height: 1;
-  color: var(--muted);
-  cursor: pointer;
-  padding: 0 2px;
-}
-
-.modal-card .close:hover {
+  min-block-size: 40px;
+  padding-inline: 12px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  list-style: none;
   color: var(--text);
 }
-
-.modal-card .status-line {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--st);
-  margin-bottom: 2px;
+.remote summary::-webkit-details-marker {
+  display: none;
 }
-
-.modal-card .reason {
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 10px;
-}
-
-.modal-card .rows {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  border-top: 1px solid var(--track);
-  padding-top: 10px;
-  margin-bottom: 10px;
-}
-
-.modal-card .rows .row {
-  display: flex;
-  justify-content: space-between;
-  font-size: 13px;
-}
-
-.modal-card .rows .k {
+.remote summary::after {
+  content: "+";
+  font-family: var(--mono);
   color: var(--muted);
 }
-
-.modal-card .rows .v {
-  font-variant-numeric: tabular-nums;
+.remote[open] summary::after {
+  content: "−";
 }
-
-.modal-card h3 {
-  font-size: 12px;
-  font-weight: 700;
-  margin: 0 0 6px;
-  color: var(--text);
+.remote summary svg {
+  inline-size: 14px;
+  block-size: 14px;
 }
-
-.log {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  border-top: 1px solid var(--track);
-  padding-top: 10px;
-}
-
-.log .entry {
-  font-size: 12px;
-  color: var(--muted);
-}
-
-.log .entry b {
-  color: var(--text);
-  font-weight: 600;
-}
-
-/* ------------------------------------------------------------
- * QR row (monitor)
- * ------------------------------------------------------------ */
-
 .qr-row {
+  position: absolute;
+  inset-block-end: calc(100% + 10px);
+  inset-inline-end: 0;
+  inline-size: 208px;
+  padding: 20px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 8px 24px color-mix(in srgb, var(--text) 12%, transparent);
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 6px;
+  gap: 12px;
+  z-index: 1;
 }
-
 .qr-row img {
-  width: 140px;
-  height: 140px;
-  border-radius: 10px;
-  border: 1px solid var(--track);
+  inline-size: 144px;
+  block-size: 144px;
   background: #fff;
+  border: 6px solid #fff;
+  border-radius: 3px;
 }
-
 .qr-row .sub {
+  font-size: 11px;
+  text-align: center;
+  line-height: 1.5;
+  color: var(--muted);
+}
+.modal {
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  color: var(--text);
+  inline-size: min(460px, calc(100% - 32px));
+  max-block-size: calc(100vh - 48px);
+  box-shadow: 0 16px 60px rgb(0 0 0 / 20%);
+}
+.modal::backdrop {
+  background: rgb(12 22 20 / 50%);
+}
+.modal-card {
+  padding: 24px;
+}
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-block-end: 20px;
+}
+.modal-head h2 {
+  margin: 0;
+  font-size: 24px;
+  letter-spacing: -0.04em;
+  font-weight: 550;
+}
+.close {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  inline-size: 36px;
+  block-size: 36px;
+  background: var(--surface);
+  font-size: 22px;
+}
+.status-line {
+  margin: 0;
+  color: var(--st);
+  font-size: 14px;
+  line-height: 1.5;
+  font-weight: 550;
+}
+.modal .reason {
+  margin: 6px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.rows {
+  margin: 20px 0;
+  border-block-start: 1px solid var(--line);
+}
+.row {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding-block: 10px;
+  border-block-end: 1px solid var(--line);
+  font-size: 12px;
+}
+.row .k {
+  color: var(--muted);
+}
+.row .v {
+  font-family: var(--mono);
+  white-space: nowrap;
+  margin: 0;
+}
+.modal h3 {
+  margin: 0 0 12px;
+  font-size: 11px;
+  font-weight: 600;
+}
+.log {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.log .entry {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-block: 7px;
+  font-size: 11px;
+}
+.event-time {
+  color: var(--muted);
+  font-family: var(--mono);
+  font-size: 10px;
+}
+#app.performer-instrument {
+  inline-size: min(420px, 100%);
+}
+.performer-instrument header {
+  display: block;
+}
+.performer-instrument h1 {
+  font-size: 32px;
+}
+.perf {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 32px;
+  margin-block-start: 28px;
+}
+.perf-meta {
+  margin: 0 0 12px;
   font-size: 11px;
   color: var(--muted);
 }
-
-/* ------------------------------------------------------------
- * Performer page
- * ------------------------------------------------------------ */
-
-.perf {
+.perf-id {
+  display: block;
+  font-family: var(--mono);
+  font-size: 84px;
+  line-height: 1;
+  letter-spacing: -0.075em;
+  margin-block-end: 28px;
+}
+.perf-state {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 14px;
-  background: var(--card);
-  border-radius: 14px;
-  padding: 36px 48px;
-  box-shadow: 0 1px 3px rgba(23, 26, 43, 0.08);
-  min-width: min(320px, 100%);
+  gap: 10px;
 }
-
 .perf .dot {
-  width: 18px;
-  height: 18px;
-  background: var(--track);
-  transition: background 0.2s;
+  inline-size: 10px;
+  block-size: 10px;
+  transition: background var(--duration);
 }
-
-/* The dot mirrors the server's verdict for this client: green / yellow /
- * red while a test runs; no class (track gray) while warming up, before
- * the operator starts a test, or while connecting. */
-.perf .dot.ok,
-.perf .dot.warn,
-.perf .dot.bad {
-  box-shadow: 0 0 0 6px var(--halo);
-  animation: pulse 1.6s ease-in-out infinite;
-}
-
 .perf .dot.ok {
   background: var(--green);
-  --halo: var(--green-soft);
 }
-
 .perf .dot.warn {
   background: var(--yellow);
-  --halo: var(--yellow-soft);
 }
-
 .perf .dot.bad {
   background: var(--red);
-  --halo: var(--red-soft);
 }
-
-@keyframes pulse {
-  0%,
-  100% {
-    box-shadow: 0 0 0 4px var(--halo);
-  }
-  50% {
-    box-shadow: 0 0 0 10px var(--halo);
-  }
-}
-
 .perf .status {
-  font-size: 18px;
-  font-weight: 600;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 550;
 }
-
-.perf .meta {
+.perf-verdict {
   font-size: 12px;
   color: var(--muted);
+  line-height: 1.6;
+  margin: 12px 0 0;
+}
+.perf-helper {
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--muted);
+  margin: 18px 0 0;
+}
+[data-utility-theme="brutal"] {
+  --radius: 0px;
+  --duration: 0ms;
+  --line: var(--text);
+}
+[data-utility-theme="brutal"] .panel {
+  box-shadow: 4px 4px 0 var(--text);
+}
+[data-utility-theme="brutal"] .remote summary,
+[data-utility-theme="brutal"] .qr-row,
+[data-utility-theme="brutal"] .status-word,
+[data-utility-theme="brutal"] .close {
+  border-radius: 0;
+}
+@media (max-width: 880px) {
+  #cards {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .overall {
+    gap: 20px;
+  }
+  .status-summary {
+    gap: 18px;
+  }
+  .overall-copy {
+    font-size: 22px;
+  }
+}
+@media (max-width: 620px) {
+  .overall {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .status-summary {
+    justify-content: space-between;
+    border-block-start: 1px solid var(--line);
+    padding-block-start: 16px;
+  }
+}
+@media (max-width: 540px) {
+  body {
+    padding: 24px 16px;
+  }
+  .brand {
+    margin-block-end: 22px;
+  }
+  header {
+    align-items: flex-start;
+    gap: 12px;
+  }
+  h1 {
+    font-size: 29px;
+  }
+  header .sub {
+    font-size: 11px;
+  }
+  .activity-value {
+    font-size: 23px;
+  }
+  .activity-label {
+    max-inline-size: 70px;
+    line-height: 1.5;
+    font-size: 9px;
+  }
+  .panel {
+    margin-block-start: 22px;
+  }
+  .overall {
+    padding: 20px;
+  }
+  .roster {
+    padding: 16px;
+  }
+  #cards {
+    grid-template-columns: 1fr;
+  }
+  .section-note {
+    font-size: 9px;
+  }
+  .metric-label {
+    font-size: 10px;
+  }
+  .empty {
+    min-block-size: 220px;
+    padding: 20px 8px;
+  }
+  footer {
+    align-items: flex-start;
+  }
+  .hint {
+    max-inline-size: 180px;
+    font-size: 10px;
+    padding-block-start: 4px;
+  }
+  .remote summary {
+    font-size: 10px;
+    padding-inline: 10px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --duration: 0ms;
+  }
 }

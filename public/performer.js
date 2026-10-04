@@ -8,23 +8,30 @@
 // gray while warming up or before the operator starts one.
 
 const P = window.PNDS;
+const copy = P.copy.en;
 
 const app = document.getElementById("app");
+app.className = "performer-instrument";
 
-app.innerHTML =
-  "<header>" +
-  "<h1>Local Network Diagnostics</h1>" +
-  '<span class="sub">Performer</span>' +
-  "</header>" +
-  '<div class="perf">' +
-  '<span class="dot" id="perf-dot"></span>' +
-  '<p class="status" id="perf-status">Connecting…</p>' +
-  '<p class="meta" id="perf-meta"></p>' +
-  "</div>";
+app.innerHTML = `
+  <div class="brand">
+    <svg viewBox="0 0 28 20" fill="none" aria-hidden="true"><path d="M7 7v6m0-3h14M21 7v6" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="1" width="8" height="6" rx="1" stroke="currentColor"/><rect x="17" y="1" width="8" height="6" rx="1" stroke="currentColor"/><rect x="3" y="13" width="8" height="6" rx="1" stroke="currentColor"/><rect x="17" y="13" width="8" height="6" rx="1" stroke="currentColor"/></svg>
+    <span>PNDS UTILITY</span>
+  </div>
+  <header><div><h1>Local Diagnostics</h1><p class="sub">${copy.performer.role}</p></div></header>
+  <div class="perf">
+    <p class="perf-meta" id="perf-meta"></p>
+    <span class="perf-id" id="perf-id">—</span>
+    <div class="perf-state"><span class="dot" id="perf-dot" aria-hidden="true"></span><p class="status" id="perf-status" role="status"></p></div>
+    <p class="perf-verdict" id="perf-verdict"></p>
+  </div>
+  <p class="perf-helper">${copy.performer.helper}</p>`;
 
 const dot = document.getElementById("perf-dot");
 const statusEl = document.getElementById("perf-status");
 const metaEl = document.getElementById("perf-meta");
+const idEl = document.getElementById("perf-id");
+const verdictEl = document.getElementById("perf-verdict");
 
 // Server-measured status → dot class. Gray (warming up, or no test
 // running) keeps the plain track-colored dot.
@@ -32,10 +39,10 @@ const STATUS_CLASS = { green: "ok", yellow: "warn", red: "bad" };
 
 let clientId = null;
 
-const socket = io(
-  "http://" + location.hostname + ":" + P.performerPort,
-  { reconnection: true, reconnectionDelay: 1000 },
-);
+const socket = io("http://" + location.hostname + ":" + P.performerPort, {
+  reconnection: true,
+  reconnectionDelay: 1000,
+});
 
 socket.on(P.events.joined, (data) => {
   localStorage.setItem(P.tokenKey, data.token);
@@ -45,7 +52,8 @@ socket.on(P.events.joined, (data) => {
 
 socket.on(P.events.rejected, (data) => {
   setJoined(false);
-  statusEl.textContent = "Rejected: " + (data && data.reason ? data.reason : "");
+  statusEl.textContent =
+    copy.performer.rejected + (data && data.reason ? data.reason : "");
 });
 
 socket.on("connect", () => {
@@ -78,7 +86,11 @@ socket.on(P.events.state, (state) => {
   }
 
   statusEl.textContent =
-    diag && diag.running ? "Connected, testing…" : "Connected";
+    diag && diag.running ? copy.performer.testing : copy.performer.connected;
+  verdictEl.textContent =
+    me && diag.running
+      ? copy.status[me.status] || copy.performer.waiting
+      : copy.performer.waiting;
 });
 
 // Diagnostics: answer every probe immediately so the server can measure
@@ -99,13 +111,17 @@ function setJoined(joined, id) {
   if (joined) {
     // The dot stays gray until the first state broadcast (the server
     // sends one right after "joined") paints the real status.
-    statusEl.textContent = "Connected";
-    metaEl.textContent = "Client " + id;
+    statusEl.textContent = copy.performer.connected;
+    metaEl.textContent = copy.monitor.client + id;
+    idEl.textContent = String(id).padStart(2, "0");
+    verdictEl.textContent = copy.performer.waiting;
   } else {
     clientId = null;
     dot.classList.remove("ok", "warn", "bad");
-    statusEl.textContent = "Connecting…";
+    statusEl.textContent = copy.performer.connecting;
     metaEl.textContent = "";
+    idEl.textContent = "—";
+    verdictEl.textContent = copy.performer.waiting;
   }
 }
 

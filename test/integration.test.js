@@ -190,11 +190,13 @@ test("score server: health, join, reconnect, pages", async (t) => {
 
   // The performer page is the minimal "connected, testing" client…
   const performerJs = await (await fetch(`${PERFORMER_URL}/performer.js`)).text();
-  assert.match(performerJs, /Connected, testing/);
+  const sharedJs = await (await fetch(`${PERFORMER_URL}/shared.js`)).text();
+  assert.match(sharedJs, /Connected, testing/);
+  assert.match(performerJs, /copy\.performer\.testing/);
   assert.doesNotMatch(performerJs, /p5/);
 
   // …and the monitor page is the operator console: it auto-starts the test
-  // on open (no Start button) and shows the centered Overall banner.
+  // on open (no Start button) and shows the network verdict.
   const monitorJs = await (await fetch(`${MONITOR_URL}/monitor.js`)).text();
   assert.match(monitorJs, /diagStart/);
   assert.match(monitorJs, /Overall/);

@@ -95,6 +95,7 @@ test("performer wiring: the dot mirrors the server's verdict for this client", (
   page.join(7);
   assert.equal(statusEl.textContent, "Connected");
   assert.equal(page.element("perf-meta").textContent, "Client 7");
+  assert.equal(page.element("perf-id").textContent, "07");
   assert.equal(page.storage.get(page.P.tokenKey), "t-7");
   assert.ok(!dot.classList.contains("ok"), "gray until a verdict exists");
 
@@ -111,6 +112,10 @@ test("performer wiring: the dot mirrors the server's verdict for this client", (
   ]) {
     page.state({ diag: { running: true, clients: { 7: { status } } } });
     assert.ok(dot.classList.contains(cls), status + " → " + cls);
+    assert.equal(
+      page.element("perf-verdict").textContent,
+      page.P.copy.en.status[status],
+    );
 
     for (const other of ["ok", "warn", "bad"]) {
       if (other !== cls) {
@@ -161,6 +166,11 @@ test("performer wiring: a disconnect resets to Connecting and ignores state", ()
 
   page.handlers.disconnect[0]();
   assert.equal(statusEl.textContent, "Connecting…");
+  assert.equal(page.element("perf-id").textContent, "—");
+  assert.equal(
+    page.element("perf-verdict").textContent,
+    page.P.copy.en.performer.waiting,
+  );
   assert.ok(!dot.classList.contains("bad"));
 
   // Late state from the old session must not repaint a connecting page.

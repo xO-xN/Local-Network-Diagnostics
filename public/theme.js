@@ -25,21 +25,25 @@
 
     // Browser wiring (monitor page): paint the first frame from
     // ?theme=<name> when present, then follow every theme message.
-    const applyVariables = (variables) => {
+    const applyVariables = (variables, theme) => {
       for (const name of Object.keys(variables)) {
         root.document.documentElement.style.setProperty(name, variables[name]);
       }
+      root.document.documentElement.setAttribute("data-utility-theme", theme);
     };
 
     const initial = api.initialVariables(root.location.search);
     if (initial) {
-      applyVariables(initial);
+      applyVariables(initial, api.initialTheme(root.location.search));
     }
 
     root.addEventListener("message", (event) => {
       const variables = api.variablesFromMessage(event.data);
       if (variables) {
-        applyVariables(variables);
+        applyVariables(
+          variables,
+          typeof event.data.theme === "string" ? event.data.theme : "",
+        );
       }
     });
   }
@@ -227,16 +231,25 @@
     },
   };
 
-  function initialVariables(search) {
+  // Pond is the current App name; Lavender remains a compatibility alias.
+  THEME_PALETTES.pond = THEME_PALETTES.lavender;
+
+  function initialTheme(search) {
     const match = /[?&]theme=([a-z0-9-]+)/.exec(search || "");
-    const palette = match && THEME_PALETTES[match[1]];
-    return palette ? variablesFromPalette(palette) : null;
+    const name = match && match[1];
+    return name && THEME_PALETTES[name] ? name : null;
+  }
+
+  function initialVariables(search) {
+    const name = initialTheme(search);
+    return name ? variablesFromPalette(THEME_PALETTES[name]) : null;
   }
 
   return {
     paletteFromMessage,
     variablesFromMessage,
     variablesFromPalette,
+    initialTheme,
     initialVariables,
     THEME_PALETTES,
   };
