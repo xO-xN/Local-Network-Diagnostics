@@ -23,3 +23,6 @@ A PNDS utility that checks a local Wi-Fi network before a performance: it contin
 Disconnected devices stay visible as red cards; the overall verdict covers
 online devices. Testing is automatic — there are no start/stop buttons. The
 device page stays English; the monitor follows the App language and theme.
+
+
+Runtime requirements: PNDS App v1.6.2 or a Host supporting the exact shared libraries in manifest.json. The project bundle carries references and project assets; standalone development can still use npm ci. See docs/shared-libraries.md in the source repository.

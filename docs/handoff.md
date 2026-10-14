@@ -47,7 +47,7 @@
 - **主题跟随走 score project spec §5.3（App issue #44/#45）**：monitor 页消费 App 的 `pnds:theme` postMessage（best-effort、最新值覆盖，App 在 iframe load / 切主题 / 焦点重获时重推），幂等写入 CSS 变量；未知或畸形消息静默忽略、页面不报错。映射在 `public/theme.js` 的 `SURFACE_VARIABLES`（bg→`--bg`、card→`--card`、text→`--text`、text-secondary→`--muted`、accent→`--accent`、danger→`--danger`/`--red`、pill→`--track`）；palette 其余键（sidebar-bg、`*-hover`/`*-foreground`、warning）页面无对应面，不消费。
 - **状态色（绿/黄/灰）按明暗推导，不直接映射 warning**：App 的 warning/danger 是"填充色 + 配套 label 色"的组合，而本页状态色直接作卡片上的文字（App 的 warning 填充色在浅色卡上作文字不达 4.5:1）。按 `palette.card` 亮度分档（<0.2 为暗），亮/暗两套状态色在四主题卡面上均 ≥4.5:1（`test/theme.test.js` 断言）。Red 是例外——App 保证 danger 作文字 ≥4.5:1，直接映射。
 - **`?theme=<name>` 为前瞻支持**：App 目前不携带该参数；四套主题初值复制自 App 的 `theme-variables.css`（消息到达后原样覆盖，故复制漂移无害但应随 App 主题演进而同步）。参数缺席或未知时用工程自带默认配色；`style.css` 的 `:root` 定义灰绿仪器默认配色；performer 页共享该默认配色，Monitor 额外消费 App palette。Brutal 几何通过 `data-utility-theme` 跟随，`pond` 初值兼容历史 `lavender` 配色。
-- 本工程**不预装 node_modules**（`.gitignore` 排除）；首次使用按 creator-guide 执行 `npm install`。发布包必须预装。
+- 共享发布包不携带 `node_modules`：App v1.6.2 按 manifest 解析确切共享依赖；独立源码开发按 creator-guide 准备本地 npm 依赖。接线与版本失败边界见 [shared-libraries.md](shared-libraries.md)。
 
 ## 验证命令
 

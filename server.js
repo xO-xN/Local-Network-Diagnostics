@@ -11,7 +11,8 @@
 // - shuts down cleanly on SIGINT / SIGTERM
 
 const path = require("node:path");
-const express = require("express");
+const libraries = require("./lib/shared-libraries");
+const express = libraries.requireLibrary("express");
 
 const {
   loadManifest,
@@ -62,6 +63,9 @@ const hostLanIp = resolveHostLanIp(process.env.PNDS_HOST_IP);
 
 const app = express();
 const monitorApp = express();
+
+libraries.attachBrowserRoutes(app);
+libraries.attachBrowserRoutes(monitorApp);
 
 app.use(express.static(path.join(PROJECT_ROOT, "public")));
 monitorApp.use(express.static(path.join(PROJECT_ROOT, "public")));
@@ -132,37 +136,29 @@ let freezeTimer = null; // defers the burst-window freeze past the window tail
 // Startup
 // ------------------------------------------------------------
 
-const server = app.listen(serverConfig.performerPort, "0.0.0.0", () => {
+const server = app.listen(serverConfig.performerPort, "0.0.0.0", (error) => {
+  if (error) {
+    console.error(`Performer HTTP server failed on port ${serverConfig.performerPort}:`, error);
+    process.exit(1);
+  }
   printRuntimeInfo();
 });
 
 const monitorServer = monitorApp.listen(
   serverConfig.monitorPort,
   "0.0.0.0",
-  () => {
+  (error) => {
+    if (error) {
+      console.error(`Monitor HTTP server failed on port ${serverConfig.monitorPort}:`, error);
+      process.exit(1);
+    }
     console.log(
       `Monitor page: http://${hostLanIp}:${serverConfig.monitorPort}/`,
     );
   },
 );
 
-server.on("error", (error) => {
-  console.error(
-    `Performer HTTP server failed on port ${serverConfig.performerPort}:`,
-    error,
-  );
-  process.exitCode = 1;
-});
-
-monitorServer.on("error", (error) => {
-  console.error(
-    `Monitor HTTP server failed on port ${serverConfig.monitorPort}:`,
-    error,
-  );
-  process.exitCode = 1;
-});
-
-const io = require("socket.io")(server, {
+const io = libraries.requireLibrary("socket.io")(server, {
   cors: {
     origin: "*",
     methods: ["GET", "POST"],

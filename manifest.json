@@ -1,8 +1,8 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "id": "local-network-diagnostics",
   "name": "Local Network Diagnostics",
-  "version": "0.6.1",
+  "version": "0.7.0",
   "description": "PNDS score project for local network diagnostics: measures Wi-Fi round-trip time, jitter and loss between the server and its clients in real time.",
   "scoreServer": {
     "entry": "server.js",
@@ -12,6 +12,22 @@
   },
   "audio": {
     "defaultMode": "none",
-    "supportedModes": ["none"]
-  }
+    "supportedModes": [
+      "none"
+    ]
+  },
+  "sharedLibraries": [
+    {
+      "id": "express",
+      "version": "5.3.0"
+    },
+    {
+      "id": "qrcode",
+      "version": "1.5.4"
+    },
+    {
+      "id": "socket.io",
+      "version": "4.8.4"
+    }
+  ]
 }

@@ -85,3 +85,6 @@ docs/           指南与交接文档
 ### 许可证
 
 MIT — 详见 [LICENSE](LICENSE)。
+
+
+Runtime requirements: PNDS App v1.6.2 or a Host supporting the exact shared libraries in manifest.json. The project bundle carries references and project assets; standalone development can still use npm ci. See docs/shared-libraries.md in the source repository.

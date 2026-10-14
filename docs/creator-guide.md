@@ -6,7 +6,7 @@
 
 ### 1. 安装依赖
 
-PNDS App **不执行 npm install**，所以工程必须自带可用的 `node_modules/`。首次使用：
+PNDS App v1.6.2 按 manifest 的确切共享引用提供 Express、qrcode 与 Socket.IO，发布包保留工程源码而不复制 `node_modules/`。独立源码开发时准备本地依赖：
 
 ```sh
 npm install
@@ -130,4 +130,4 @@ PNDS App 以 JSON 中 `status === "ready"` 为显示条件。无音频工程按�
 
 ## 发布
 
-带生产依赖的发布包由 `.github/workflows/package.yml` 构建（ALLOWLIST 裁剪，`node_modules` 预装）。详见 `docs/handoff.md`。
+共享发布包由 `.github/workflows/package.yml` 构建（ALLOWLIST 裁剪，校验确切引用，不复制 `node_modules`）。详见 `docs/handoff.md`。

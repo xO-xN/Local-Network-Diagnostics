@@ -13,7 +13,7 @@ const PROJECT_ROOT = path.join(__dirname, "..");
 test("loadManifest reads the project manifest", () => {
   const manifest = loadManifest(PROJECT_ROOT);
 
-  assert.equal(manifest.schemaVersion, 1);
+  assert.equal(manifest.schemaVersion, 2);
   assert.equal(manifest.scoreServer.performerPort, 6868);
   assert.equal(manifest.scoreServer.monitorPort, 6869);
   assert.notEqual(
