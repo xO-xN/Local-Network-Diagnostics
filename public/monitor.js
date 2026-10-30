@@ -38,10 +38,7 @@ app.innerHTML = `
   </section>
   <footer>
     <p class="hint" id="hint"></p>
-    <details class="remote">
-      <summary><svg viewBox="0 0 16 16" fill="none" aria-hidden="true"><rect x="4.5" y="1.5" width="7" height="13" rx="1.5" stroke="currentColor"/><path d="M7 12h2" stroke="currentColor" stroke-linecap="round"/></svg><span id="join-label"></span></summary>
-      <div class="qr-row"><img src="/qr" id="qr-img" alt=""/><span class="sub" id="scan-label"></span></div>
-    </details>
+
   </footer>
   <dialog class="modal" id="modal" aria-labelledby="details-title">
     <div class="modal-card st-gray" id="modal-card">
@@ -125,12 +122,9 @@ function render() {
     "empty-title": t.monitor.emptyTitle,
     "empty-copy": t.monitor.empty,
     hint: t.monitor.hint,
-    "join-label": t.monitor.join,
-    "scan-label": t.monitor.scan,
   }))
     byId(id).textContent = value;
   byId("capacity").textContent = " / " + P.maxClients;
-  byId("qr-img").setAttribute("alt", t.monitor.qrAlt);
   closeButton.setAttribute("aria-label", t.monitor.close);
   renderOverall();
   renderCards();

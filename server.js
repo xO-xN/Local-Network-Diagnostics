@@ -32,7 +32,6 @@ const {
   BURST_PHASE_MS,
   CALM_PHASE_MS,
 } = require("./lib/diagnostics");
-const { qrHandler } = require("./lib/qr");
 const {
   attachShutdown,
   closeHttpServer,
@@ -92,12 +91,6 @@ const health = new HealthTracker({
 
 app.get("/__pnds/health", health.handler());
 monitorApp.get("/__pnds/health", health.handler());
-
-// QR code for the performer page, shown on the monitor page.
-monitorApp.get(
-  "/qr",
-  qrHandler(`http://${hostLanIp}:${serverConfig.performerPort}/`),
-);
 
 // ------------------------------------------------------------
 // Client registry + network diagnostics session

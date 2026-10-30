@@ -12,7 +12,7 @@ A PNDS utility that checks a local Wi-Fi network before a performance: it contin
    installation is required, the App bundles everything this tool needs.
 2. Put the Mac and the performer devices (phones / tablets) on the same local
    network.
-3. Expand **Join devices** at the bottom of the monitor and scan the QR code on
+3. Click the App performer QR button and scan the code on
    each device. Devices join and answer measurement probes automatically —
    keep their pages open.
 4. The monitor starts testing the moment it opens: the overall verdict on top
@@ -26,3 +26,7 @@ device page stays English; the monitor follows the App language and theme.
 
 
 Runtime requirements: PNDS App v1.6.2 or a Host supporting the exact shared libraries in manifest.json. The project bundle carries references and project assets; standalone development can still use npm ci. See docs/shared-libraries.md in the source repository.
+
+## App performer QR migration
+
+This version removes the project QR interface and `/qr` endpoint. In PNDS App with built-in performer QR, use the bottom bar in performance mode or the Performers button in creation mode to open this project’s performer page. Standalone browsers and older Apps retain the project pages without an in-page QR entry.
