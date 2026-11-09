@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>Local Network Diagnostics</title>
     <link rel="stylesheet" type="text/css" href="style.css" />
+    <script src="__pnds/context.js"></script>
     <script src="__config.js"></script>
     <script src="shared.js"></script>
     <script>
@@ -13,11 +14,11 @@
       // console. Socket.IO is served by the performer server; the monitor
       // page loads it cross-port. No CDN: performances run offline.
       document.write(
-        '\x3Cscript src="http://' +
-          location.hostname +
-          ':' +
-          window.PNDS.performerPort +
-          '/__pnds/shared/socket.io.js"\x3E\x3C/script\x3E',
+        '\x3Cscript src="' +
+          (window.PNDS.role === "monitor"
+            ? "http://" + location.hostname + ":" + window.PNDS.performerPort + "/"
+            : "") +
+          '__pnds/shared/socket.io.js"\x3E\x3C/script\x3E',
       );
     </script>
   </head>
@@ -26,7 +27,7 @@
     <main id="app"></main>
 
     <script>
-      if (window.location.port === String(window.PNDS.monitorPort)) {
+      if (window.PNDS.role === "monitor") {
         // theme.js / locale.js follow the App's theme and language pushes
         // (network reference "Theme Following" / "Locale Following") —
         // monitor only; the performer branch below never loads them.

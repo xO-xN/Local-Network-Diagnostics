@@ -289,9 +289,9 @@ test("monitor page wiring: malformed events never throw or write", () => {
 test("the performer branch never loads the theme listener", () => {
   const html = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf8");
 
-  // theme.js is written only inside the monitor branch of the port
+  // theme.js is written only inside the monitor branch of the server-role
   // fork, before the monitor script itself.
-  const monitorBranch = html.slice(html.indexOf("monitorPort"));
+  const monitorBranch = html.slice(html.indexOf('if (window.PNDS.role === "monitor")'));
   assert.match(monitorBranch, /theme\.js/);
   assert.ok(
     monitorBranch.indexOf("theme.js") < monitorBranch.indexOf("monitor.js"),

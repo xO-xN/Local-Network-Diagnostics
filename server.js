@@ -11,6 +11,7 @@
 // - shuts down cleanly on SIGINT / SIGTERM
 
 const path = require("node:path");
+const fs = require("node:fs");
 const libraries = require("./lib/shared-libraries");
 const express = libraries.requireLibrary("express");
 
@@ -55,6 +56,36 @@ if (cliOptions.help) {
 
 const serverConfig = resolveServerConfig(manifest);
 const hostLanIp = resolveHostLanIp(process.env.PNDS_HOST_IP);
+const assignment = serverConfig.runtimeAssignment;
+let boundCount = 0;
+
+function listenerOptions(role) {
+  const service = assignment?.services.find(service => service.role === role);
+  return service ? { fd: service.fd } : { port: serverConfig[`${role}Port`], host: "0.0.0.0" };
+}
+
+function publishReport(status, error) {
+  if (!assignment) return;
+  const report = {
+    version: 1, runId: assignment.runId, status,
+    services: status === "bound" ? assignment.services.map(({ role, port }) => ({ role, port })) : [],
+    ...(error ? { error: String(error.message || error) } : {}),
+  };
+  const temporary = `${assignment.reportPath}.${process.pid}.tmp`;
+  fs.writeFileSync(temporary, JSON.stringify(report));
+  fs.renameSync(temporary, assignment.reportPath);
+}
+
+function reportBound() {
+  boundCount += 1;
+  if (boundCount === 2) publishReport("bound");
+}
+
+function startupError(error) {
+  try { publishReport("error", error); } catch (reportError) { console.error(reportError); }
+  console.error(error);
+  process.exit(1);
+}
 
 // ------------------------------------------------------------
 // HTTP servers (performer port + monitor port share public/)
@@ -63,23 +94,25 @@ const hostLanIp = resolveHostLanIp(process.env.PNDS_HOST_IP);
 const app = express();
 const monitorApp = express();
 
+// The Host intercepts this route only after explicit confirmation.
+for (const target of [app, monitorApp]) {
+  target.get("/__pnds/context.js", (_request, response) => response.type("application/javascript").send("/* Direct access: no Host confirmation. */\n"));
+}
 libraries.attachBrowserRoutes(app);
 libraries.attachBrowserRoutes(monitorApp);
 
 app.use(express.static(path.join(PROJECT_ROOT, "public")));
 monitorApp.use(express.static(path.join(PROJECT_ROOT, "public")));
 
-// Injects manifest ports into the browser so shared.js can read them.
-// The single source of truth is manifest.json — shared.js no longer
-// hardcodes ports.
-function configScript(request, response) {
-  response.type("application/javascript").send(
-    `window.__PNDS_PORTS__ = { performerPort: ${serverConfig.performerPort}, monitorPort: ${serverConfig.monitorPort} };`
+// Role comes from the service, never the browser's public entry port.
+function configScript(role) {
+  return (_request, response) => response.type("application/javascript").send(
+    `window.__PNDS_PORTS__ = ${JSON.stringify({ role, performerPort: serverConfig.performerPort, monitorPort: serverConfig.monitorPort })};`
   );
 }
 
-app.get("/__config.js", configScript);
-monitorApp.get("/__config.js", configScript);
+app.get("/__config.js", configScript("performer"));
+monitorApp.get("/__config.js", configScript("monitor"));
 
 // No audio: the runtime contract's "none" mode (audio.status "disabled").
 const health = new HealthTracker({
@@ -87,6 +120,7 @@ const health = new HealthTracker({
   audioMode: "none",
   performerPort: serverConfig.performerPort,
   monitorPort: serverConfig.monitorPort,
+  runtimeRunId: assignment?.runId,
 });
 
 app.get("/__pnds/health", health.handler());
@@ -129,27 +163,19 @@ let freezeTimer = null; // defers the burst-window freeze past the window tail
 // Startup
 // ------------------------------------------------------------
 
-const server = app.listen(serverConfig.performerPort, "0.0.0.0", (error) => {
-  if (error) {
-    console.error(`Performer HTTP server failed on port ${serverConfig.performerPort}:`, error);
-    process.exit(1);
-  }
+const server = app.listen(listenerOptions("performer"), (error) => {
+  if (error) return startupError(error);
+  reportBound();
   printRuntimeInfo();
 });
+server.on("error", startupError);
 
-const monitorServer = monitorApp.listen(
-  serverConfig.monitorPort,
-  "0.0.0.0",
-  (error) => {
-    if (error) {
-      console.error(`Monitor HTTP server failed on port ${serverConfig.monitorPort}:`, error);
-      process.exit(1);
-    }
-    console.log(
-      `Monitor page: http://${hostLanIp}:${serverConfig.monitorPort}/`,
-    );
-  },
-);
+const monitorServer = monitorApp.listen(listenerOptions("monitor"), (error) => {
+  if (error) return startupError(error);
+  reportBound();
+  console.log(`Monitor page: http://${hostLanIp}:${serverConfig.monitorPort}/`);
+});
+monitorServer.on("error", startupError);
 
 const io = libraries.requireLibrary("socket.io")(server, {
   cors: {

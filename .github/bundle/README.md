@@ -12,9 +12,9 @@ A PNDS utility that checks a local Wi-Fi network before a performance: it contin
    installation is required, the App bundles everything this tool needs.
 2. Put the Mac and the performer devices (phones / tablets) on the same local
    network.
-3. Click the App performer QR button and scan the code on
-   each device. Devices join and answer measurement probes automatically —
-   keep their pages open.
+3. In the bottom network control, copy the full public LAN URL or scan its QR
+   code. On each device explicitly enter the displayed performance; the device
+   then joins and answers measurement probes automatically. Keep its page open.
 4. The monitor starts testing the moment it opens: the overall verdict on top
    (the worst status among online devices), per-device cards with typical and
    worst-case round-trip time, timing variation and recent events. Select a
@@ -27,6 +27,13 @@ device page stays English; the monitor follows the App language and theme.
 
 Runtime requirements: PNDS App v1.6.2 or a Host supporting the exact shared libraries in manifest.json. The project bundle carries references and project assets; standalone development can still use npm ci. See docs/shared-libraries.md in the source repository.
 
-## App performer QR migration
+## Unified Host entry
 
-This version removes the project QR interface and `/qr` endpoint. In PNDS App with built-in performer QR, use the bottom bar in performance mode or the Performers button in creation mode to open this project’s performer page. Standalone browsers and older Apps retain the project pages without an in-page QR entry.
+Version 0.7.2 supports confirmed browser participation and dynamically assigned
+internal listeners. Device assets and polling/WebSocket remain under the confirmed
+performance URL; replacing a performance cannot authorize the old page. Claims
+are scoped by Host/project, with native private-origin recovery retained. Local
+measurements need no WAN once local resources are ready. A prepared page is not
+a successful diagnosis: inspect the real monitor measurements. Saving a browser
+icon adds no HTTPS or permission capability. Standalone access remains available;
+Creation device tests retain their separate QR entry.

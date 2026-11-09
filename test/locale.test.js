@@ -209,9 +209,9 @@ test("unsubscribe stops the notifications", () => {
 test("the performer branch never loads the locale listener", () => {
   const html = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf8");
 
-  // locale.js is written only inside the monitor branch of the port
+  // locale.js is written only inside the monitor branch of the server-role
   // fork, after theme.js and before the monitor script itself.
-  const monitorBranch = html.slice(html.indexOf("monitorPort"));
+  const monitorBranch = html.slice(html.indexOf('if (window.PNDS.role === "monitor")'));
   assert.match(monitorBranch, /locale\.js/);
   assert.ok(
     monitorBranch.indexOf("theme.js") < monitorBranch.indexOf("locale.js"),

@@ -8,6 +8,10 @@
 
 A PNDS score project that continuously diagnoses the local Wi-Fi network between the score server and its performer clients, and tells you — in plain language — whether the network is fit for a live performance. Network-only: no audio, no SuperCollider; the server always runs with audio disabled (`none` mode). Stack: Node.js, Express, Socket.IO.
 
+### Unified Host entry
+
+In PNDS App, open the complete public LAN URL from the bottom network control, then explicitly enter this performance. Local-only diagnostics work without WAN once local assets/shared libraries are ready. See [browser participation](docs/browser-participation.md) for confirmation, reconnect, native recovery and release boundaries.
+
 ### Features
 
 - **Automatic test**: opening the monitor page starts the test immediately — no button to press
@@ -49,6 +53,10 @@ MIT — see [LICENSE](LICENSE).
 ## 中文
 
 一个 PNDS 数字乐谱工程：持续诊断 score server 与演奏者客户端之间的本地 Wi-Fi 网络，并用直白的方式告诉你当前网络是否适合现场演出。纯网络工具：无音频、无 SuperCollider，server 恒以 none 模式（音频禁用）运行。技术栈：Node.js, Express, Socket.IO。
+
+### 统一池主演奏入口
+
+在 PNDS App 底栏网络区打开完整公开 LAN 网址，再明确进入本次演出。所需本地资源和共享库就绪后，局域网诊断不需要 WAN。确认、重连、原生恢复和发行边界见[浏览器接入说明](docs/browser-participation.md)。
 
 ### 功能
 

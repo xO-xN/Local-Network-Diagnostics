@@ -8,6 +8,8 @@
 // gray while warming up or before the operator starts one.
 
 const P = window.PNDS;
+const participation = window.PNDS_PARTICIPATION;
+const tokenKey = participation ? participation.storageKey(P.tokenKey) : P.tokenKey;
 const copy = P.copy.en;
 
 const app = document.getElementById("app");
@@ -39,19 +41,22 @@ const STATUS_CLASS = { green: "ok", yellow: "warn", red: "bad" };
 
 let clientId = null;
 
-const socket = io("http://" + location.hostname + ":" + P.performerPort, {
+const socket = io(location.origin, {
+  ...(participation ? participation.socketOptions : {}),
   reconnection: true,
   reconnectionDelay: 1000,
 });
 
 socket.on(P.events.joined, (data) => {
-  localStorage.setItem(P.tokenKey, data.token);
+  localStorage.setItem(tokenKey, data.token);
   clientId = data.id;
   setJoined(true, data.id);
+  participation?.reportPrepared();
 });
 
 socket.on(P.events.rejected, (data) => {
   setJoined(false);
+  participation?.reportPreparationFailed();
   statusEl.textContent =
     copy.performer.rejected + (data && data.reason ? data.reason : "");
 });
@@ -60,7 +65,10 @@ socket.on("connect", () => {
   // Fires on first connect and after every reconnect: (re)join with the
   // persisted token so the server hands back the same client id.
   socket.emit(P.events.join, {
-    token: localStorage.getItem(P.tokenKey) || null,
+    // Native private origins already isolate Host/project and can retain
+    // an older claim. Never adopt a legacy global key on the public entry.
+    token: localStorage.getItem(tokenKey) ||
+      (participation?.basePath === "/" ? localStorage.getItem(P.tokenKey) : null) || null,
   });
 });
 

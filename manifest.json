@@ -2,13 +2,16 @@
   "schemaVersion": 2,
   "id": "local-network-diagnostics",
   "name": "Local Network Diagnostics",
-  "version": "0.7.1",
+  "version": "0.7.2",
   "description": "PNDS score project for local network diagnostics: measures Wi-Fi round-trip time, jitter and loss between the server and its clients in real time.",
   "scoreServer": {
     "entry": "server.js",
     "workingDirectory": ".",
     "performerPort": 6868,
-    "monitorPort": 6869
+    "monitorPort": 6869,
+    "supportsPerformerUrl": true,
+    "runtimePorts": 1,
+    "browserParticipation": 1
   },
   "audio": {
     "defaultMode": "none",

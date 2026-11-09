@@ -29,6 +29,7 @@
   return {
     // Read from manifest.json (or __config.js in the browser).
     // Change ports ONLY in manifest.json.
+    role: ports.role,
     performerPort: ports.performerPort,
     monitorPort: ports.monitorPort,
 
